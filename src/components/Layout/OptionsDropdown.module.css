@@ -1,0 +1,149 @@
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdownContent {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  margin-top: 8px;
+  min-width: 800px;
+  padding: 24px;
+}
+
+.dropdownContent::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #1a1a1a;
+}
+
+.dropdownGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 32px;
+}
+
+.dropdownColumn {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+
+.columnTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333333;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dropdownItem {
+  background: none;
+  border: none;
+  color: #cccccc;
+  padding: 8px 0;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.4;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  padding-left: 8px;
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dropdownItem:hover {
+  color: #ffffff;
+  background-color: #333333;
+  transform: translateX(2px);
+}
+
+.dropdownItem:active {
+  background-color: #404040;
+}
+
+.newBadge {
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .dropdownContent {
+    min-width: 700px;
+    padding: 20px;
+  }
+  
+  .dropdownGrid {
+    gap: 24px;
+  }
+  
+  .dropdownColumn {
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dropdownContent {
+    min-width: 600px;
+    padding: 16px;
+    left: 0;
+    transform: translateX(-75%);
+  }
+  
+  .dropdownGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  
+  .columnTitle {
+    font-size: 13px;
+  }
+  
+  .dropdownItem {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+}
+
+/* Animation for smooth appearance */
+.dropdownContent {
+  opacity: 0;
+  animation: fadeInDown 0.2s ease forwards;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
