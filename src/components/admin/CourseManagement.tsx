@@ -9,7 +9,7 @@ interface Course {
   description: string;
   level: string;
   price: number;
-  duration: number; // in weeks
+  duration: number;
   teacherId: string;
   maxStudents: number;
   currentStudents: number;
@@ -20,13 +20,10 @@ interface Course {
   createdAt: string;
 }
 
-interface CourseManagementProps {
-  teachers: any[];
-  children: any[];
-}
-
-export default function CourseManagement({ teachers, children }: CourseManagementProps) {
+export default function CourseManagement() {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [children, setChildren] = useState<any[]>([]);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +40,41 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
     endDate: ''
   });
 
-  // Load courses from Firebase
+  // Load Teachers
+  useEffect(() => {
+    const teachersRef = ref(database, 'teachers');
+    const unsubscribe = onValue(teachersRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+        setTeachers(arr.filter(t => t.isActive !== false));
+        console.log('✅ Teachers loaded:', arr.length);
+      } else {
+        setTeachers([]);
+      }
+    });
+
+    return () => off(teachersRef, 'value', unsubscribe);
+  }, []);
+
+  // Load Children
+  useEffect(() => {
+    const childrenRef = ref(database, 'children');
+    const unsubscribe = onValue(childrenRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+        setChildren(arr.filter(c => c.isActive !== false));
+        console.log('✅ Children loaded:', arr.length);
+      } else {
+        setChildren([]);
+      }
+    });
+
+    return () => off(childrenRef, 'value', unsubscribe);
+  }, []);
+
+  // Load Courses
   useEffect(() => {
     const coursesRef = ref(database, 'courses');
     const unsubscribe = onValue(coursesRef, (snapshot) => {
@@ -54,8 +85,10 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
           ...data[key]
         }));
         setCourses(coursesArray);
+        console.log('✅ Courses loaded from Firebase:', coursesArray.length);
       } else {
         setCourses([]);
+        console.log('⚠️ No courses in Firebase');
       }
       setLoading(false);
     });
@@ -187,12 +220,11 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Course Management</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Create and manage educational courses and content
+            Create and manage educational courses
           </p>
         </div>
         <button
@@ -204,7 +236,6 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
         </button>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((item) => (
           <div key={item.name} className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
@@ -231,7 +262,18 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
         ))}
       </div>
 
-      {/* Courses Grid */}
+      {teachers.length === 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <Users className="h-5 w-5 text-yellow-600" />
+            <div>
+              <p className="text-sm font-medium text-yellow-800">No Teachers Available</p>
+              <p className="text-xs text-yellow-700 mt-1">Please add teachers first before creating courses.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {courses.map((course) => {
           const teacher = teachers.find(t => t.id === course.teacherId);
@@ -317,7 +359,6 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
         </div>
       )}
 
-      {/* Add/Edit Course Modal */}
       {(showAddCourseModal || editingCourse) && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full mx-auto max-h-[90vh] overflow-y-auto">
@@ -350,7 +391,7 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
-                      placeholder="e.g., Advanced Mathematics"
+                      placeholder="e.g., Quran Memorization"
                     />
                   </div>
 
@@ -364,7 +405,7 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       rows={3}
                       required
-                      placeholder="Course description and objectives..."
+                      placeholder="Course description..."
                     />
                   </div>
 
@@ -429,7 +470,7 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
                     />
                   </div>
 
-                  <div>
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Assign Teacher *
                     </label>
@@ -442,10 +483,13 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
                       <option value="">Select Teacher</option>
                       {teachers.map(teacher => (
                         <option key={teacher.id} value={teacher.id}>
-                          {teacher.name} - {teacher.specialization}
+                          {teacher.name} - {teacher.subject || teacher.specialization || 'General'}
                         </option>
                       ))}
                     </select>
+                    {teachers.length === 0 && (
+                      <p className="text-xs text-red-600 mt-1">No teachers available</p>
+                    )}
                   </div>
 
                   <div>
@@ -457,7 +501,7 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
                       value={formData.schedule}
                       onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., Mon/Wed/Fri 3:00-4:00 PM"
+                      placeholder="e.g., Mon/Wed/Fri 3:00 PM"
                     />
                   </div>
 
@@ -503,6 +547,7 @@ export default function CourseManagement({ teachers, children }: CourseManagemen
                   <button
                     type="submit"
                     className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                    disabled={teachers.length === 0}
                   >
                     {editingCourse ? 'Update Course' : 'Create Course'}
                   </button>

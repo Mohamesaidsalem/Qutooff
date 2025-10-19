@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Loader } from 'lucide-react';
+import { X, Users, Loader } from 'lucide-react';
+import { ref, push, set, onValue, off } from 'firebase/database';
+import { database } from '../../../firebase/config';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useData } from '../../../contexts/DataContext';
 
 interface AddChildModalProps {
   isOpen: boolean;
@@ -10,47 +11,42 @@ interface AddChildModalProps {
 
 export default function AddChildModal({ isOpen, onClose }: AddChildModalProps) {
   const { user } = useAuth();
-  const { addChild, teachers } = useData();
   const [loading, setLoading] = useState(false);
-  const [availableTeachers, setAvailableTeachers] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     age: '',
-    level: 'Beginner',
+    level: '',
     teacherId: '',
     teacherName: '',
     progress: 0
   });
 
-  // تحديث قائمة المدرسين المتاحين
+  // Load teachers
   useEffect(() => {
-    if (isOpen && teachers) {
-      const activeTeachers = teachers.filter(t => t.isActive !== false);
-      console.log('Available teachers:', activeTeachers); // للتأكد
-      setAvailableTeachers(activeTeachers);
-      
-      // Reset form when modal opens
-      setFormData({
-        name: '',
-        age: '',
-        level: 'Beginner',
-        teacherId: '',
-        teacherName: '',
-        progress: 0
-      });
-    }
-  }, [isOpen, teachers]);
+    if (!isOpen) return;
+
+    const teachersRef = ref(database, 'teachers');
+    const unsubscribe = onValue(teachersRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const teachersArray = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        setTeachers(teachersArray.filter(t => t.isActive !== false));
+      } else {
+        setTeachers([]);
+      }
+    });
+
+    return () => off(teachersRef, 'value', unsubscribe);
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!user?.id) {
+    if (!user) {
       alert('User not authenticated');
-      return;
-    }
-
-    if (!formData.name || !formData.age || !formData.teacherId) {
-      alert('Please fill in all required fields');
       return;
     }
 
@@ -58,18 +54,54 @@ export default function AddChildModal({ isOpen, onClose }: AddChildModalProps) {
     try {
       const selectedTeacher = teachers.find(t => t.id === formData.teacherId);
       
-      await addChild({
+      // ✅ Child data
+      const childData = {
         name: formData.name,
-        age: parseInt(formData.age),
+        age: Number(formData.age),
         level: formData.level,
         teacherId: formData.teacherId,
         teacherName: selectedTeacher?.name || '',
-        progress: 0,
         parentId: user.id,
-        nextClass: 'Not scheduled yet'
+        progress: 0,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        nextClass: 'Not scheduled'
+      };
+
+      // ✅ Save to 'children' collection
+      const childrenRef = ref(database, 'children');
+      const newChildRef = push(childrenRef);
+      await set(newChildRef, childData);
+
+      // ✅ Save to 'users' collection (for system-wide user management)
+      const userRef = ref(database, `users/${newChildRef.key}`);
+      await set(userRef, {
+        name: childData.name,
+        email: '', // Will be set when student account is created
+        role: 'student',
+        age: childData.age,
+        level: childData.level,
+        parentId: user.id,
+        teacherId: childData.teacherId,
+        progress: 0,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        timezone: user.timezone || 'UTC'
       });
 
+      console.log('✅ Child added successfully:', newChildRef.key);
       alert('Child added successfully!');
+      
+      // Reset form
+      setFormData({
+        name: '',
+        age: '',
+        level: '',
+        teacherId: '',
+        teacherName: '',
+        progress: 0
+      });
+      
       onClose();
     } catch (error) {
       console.error('Error adding child:', error);
@@ -79,25 +111,16 @@ export default function AddChildModal({ isOpen, onClose }: AddChildModalProps) {
     }
   };
 
-  const handleTeacherChange = (teacherId: string) => {
-    const teacher = teachers.find(t => t.id === teacherId);
-    setFormData({
-      ...formData,
-      teacherId,
-      teacherName: teacher?.name || ''
-    });
-  };
-
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex justify-between items-center rounded-t-xl">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex justify-between items-center rounded-t-xl">
           <div className="flex items-center gap-3">
             <div className="bg-white bg-opacity-20 p-2 rounded-lg">
-              <UserPlus className="h-6 w-6 text-white" />
+              <Users className="h-6 w-6 text-white" />
             </div>
             <h2 className="text-xl font-bold text-white">Add New Child</h2>
           </div>
@@ -111,8 +134,7 @@ export default function AddChildModal({ isOpen, onClose }: AddChildModalProps) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Name */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Child's Name <span className="text-red-500">*</span>
@@ -121,14 +143,13 @@ export default function AddChildModal({ isOpen, onClose }: AddChildModalProps) {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               placeholder="Enter child's full name"
               required
               disabled={loading}
             />
           </div>
 
-          {/* Age */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Age <span className="text-red-500">*</span>
@@ -137,67 +158,70 @@ export default function AddChildModal({ isOpen, onClose }: AddChildModalProps) {
               type="number"
               value={formData.age}
               onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               placeholder="Enter age"
-              min="4"
+              min="5"
               max="18"
               required
               disabled={loading}
             />
           </div>
 
-          {/* Level */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Learning Level <span className="text-red-500">*</span>
+              Level <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.level}
               onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               required
               disabled={loading}
             >
-              <option value="Beginner">Beginner - Starting Journey</option>
-              <option value="Short Surahs">Short Surahs - Juz Amma</option>
-              <option value="Surah Yaseen">Surah Yaseen Level</option>
-              <option value="Half Quran">Half Quran Memorized</option>
-              <option value="Advanced">Advanced - Full Quran</option>
+              <option value="">Select Level</option>
+              <option value="Beginner">Beginner</option>
+              <option value="Elementary">Elementary</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Advanced">Advanced</option>
             </select>
           </div>
 
-          {/* Teacher Selection */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Select Teacher <span className="text-red-500">*</span>
+              Assign Teacher <span className="text-red-500">*</span>
             </label>
             <select
-  value={formData.teacherId}
-  onChange={(e) => handleTeacherChange(e.target.value)}
-  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-  required
-  disabled={loading}
->
-  <option value="">Choose a teacher...</option>
-  {availableTeachers.map((teacher) => (  // ← لازم availableTeachers مش teachers
-    <option key={teacher.id} value={teacher.id}>
-      {teacher.name} - {teacher.specialization}
-    </option>
-  ))}
-</select>
+              value={formData.teacherId}
+              onChange={(e) => {
+                const teacher = teachers.find(t => t.id === e.target.value);
+                setFormData({ 
+                  ...formData, 
+                  teacherId: e.target.value,
+                  teacherName: teacher?.name || ''
+                });
+              }}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              required
+              disabled={loading}
+            >
+              <option value="">Select Teacher</option>
+              {teachers.map(teacher => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.name} - {teacher.subject || teacher.specialization || 'General'}
+                </option>
+              ))}
+            </select>
             {teachers.length === 0 && (
-              <p className="text-sm text-red-500 mt-2">No teachers available</p>
+              <p className="text-xs text-yellow-600 mt-1">No teachers available. Please contact admin.</p>
             )}
           </div>
 
-          {/* Info Box */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800">
               <strong>Note:</strong> After adding your child, you can create a student account for them to access their own dashboard.
             </p>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -219,7 +243,7 @@ export default function AddChildModal({ isOpen, onClose }: AddChildModalProps) {
                 </>
               ) : (
                 <>
-                  <UserPlus className="h-5 w-5" />
+                  <Users className="h-5 w-5" />
                   Add Child
                 </>
               )}

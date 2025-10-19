@@ -25,25 +25,80 @@ export default function StudentDashboard() {
     confirmPassword: ''
   });
 
-  // Find the current student's data
+  // ✅ FIX: Find student with multiple fallback methods
   useEffect(() => {
+    console.log('👤 StudentDashboard - Current user:', user);
+    console.log('📚 StudentDashboard - All children:', children);
+    
     if (user && children.length > 0) {
-      const student = children.find(child =>
-        child.studentAccount?.email === user.email || child.id === user.id
-      );
+      let student = null;
+      
+      // ✅ Method 1: Search by user ID (most reliable)
+      if (user.id) {
+        student = children.find(child => child.id === user.id);
+        if (student) {
+          console.log('✅ Found by user ID:', student);
+        }
+      }
+      
+      // ✅ Method 2: Search by student account email (MOST IMPORTANT for student login)
+      if (!student && user.email) {
+        student = children.find(child =>
+          child.studentAccount?.email?.toLowerCase() === user.email.toLowerCase()
+        );
+        if (student) {
+          console.log('✅ Found by student account email:', student);
+        }
+      }
+      
+      // ✅ Method 3: Search by main email (backup)
+      if (!student && user.email) {
+        student = children.find(child => 
+          child.email?.toLowerCase() === user.email.toLowerCase()
+        );
+        if (student) {
+          console.log('✅ Found by main email:', student);
+        }
+      }
+      
+      // ✅ Method 4: Search by name (last resort)
+      if (!student && user.name) {
+        student = children.find(child => 
+          child.name.toLowerCase() === user.name.toLowerCase()
+        );
+        if (student) {
+          console.log('✅ Found by name:', student);
+        }
+      }
+      
+      // ✅ Method 5: If still not found, log all available emails for debugging
+      if (!student) {
+        console.log('❌ Student not found. Debugging info:');
+        console.log('User email:', user.email);
+        console.log('User ID:', user.id);
+        console.log('Available student emails:', children.map(c => ({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          studentEmail: c.studentAccount?.email
+        })));
+      }
       
       if (student) {
+        console.log('✅ Final student data:', student);
         setCurrentStudent(student);
         
         // Get student's classes
         const classes = getClassesByStudent(student.id);
+        console.log('📅 Student classes:', classes);
         setStudentClasses(classes);
         
         // Get upcoming classes
+        const now = new Date();
         const upcoming = classes
           .filter(cls => {
             const classDateTime = new Date(`${cls.date}T${cls.time}`);
-            return classDateTime >= new Date() && cls.status === 'scheduled';
+            return classDateTime >= now && cls.status === 'scheduled';
           })
           .sort((a, b) => {
             const dateA = new Date(`${a.date}T${a.time}`);
@@ -52,7 +107,10 @@ export default function StudentDashboard() {
           })
           .slice(0, 3);
         
+        console.log('🔔 Upcoming classes:', upcoming);
         setUpcomingClasses(upcoming);
+      } else {
+        console.log('❌ No student found with user data:', user);
       }
     }
   }, [user, children, getClassesByStudent]);
@@ -124,22 +182,45 @@ export default function StudentDashboard() {
           <div className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
             <X className="h-8 w-8 text-red-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Student Not Found</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Student Profile Not Found</h1>
           <p className="text-gray-600 mb-4">
-            We couldn't find your student profile. Please contact your parent or administrator.
+            We couldn't find your student profile. This might happen if:
           </p>
+          <div className="mt-6 p-4 bg-yellow-50 rounded-lg text-left">
+            <ul className="space-y-2 text-sm text-yellow-800">
+              <li className="flex items-start gap-2">
+                <span className="font-bold">•</span>
+                <span>Your parent hasn't created a student account for you yet</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">•</span>
+                <span>You're using a different email than the one registered</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">•</span>
+                <span>Your account is still being set up</span>
+              </li>
+            </ul>
+          </div>
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-700">
-              <strong>Need Help?</strong> Make sure you're using the correct email and password provided by your parent.
+              <strong>Need Help?</strong> Contact your parent or administrator to set up your student account.
             </p>
           </div>
+          {user && (
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-600 mb-2">Logged in as:</p>
+              <p className="text-sm font-medium text-gray-900">{user.email}</p>
+              <p className="text-sm text-gray-600">{user.name}</p>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   const completedClasses = studentClasses.filter(cls => cls.status === 'completed').length;
-  const streak = 12; // Can be calculated based on consecutive days
+  const streak = 12;
   const teacher = teachers.find(t => t.id === currentStudent.teacherId);
 
   const achievements = [
@@ -209,7 +290,7 @@ export default function StudentDashboard() {
           <div className="p-6">
             <div className="text-center mb-6">
               <h3 className="text-2xl font-bold text-blue-600">{currentStudent.level}</h3>
-              <p className="text-gray-600">Teacher: {teacher?.name || currentStudent.teacherName}</p>
+              <p className="text-gray-600">Teacher: {teacher?.name || currentStudent.teacherName || 'Not assigned'}</p>
             </div>
 
             <div className="mb-6">
@@ -371,7 +452,6 @@ export default function StudentDashboard() {
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-            {/* Header */}
             <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex justify-between items-center rounded-t-xl">
               <div className="flex items-center gap-3">
                 <div className="bg-white bg-opacity-20 p-2 rounded-lg">
@@ -388,7 +468,6 @@ export default function StudentDashboard() {
               </button>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleChangePassword} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -446,7 +525,6 @@ export default function StudentDashboard() {
                 />
               </div>
 
-              {/* Password Match Indicator */}
               {passwordData.newPassword && passwordData.confirmPassword && (
                 <div className={`text-sm ${passwordData.newPassword === passwordData.confirmPassword ? 'text-green-600' : 'text-red-600'}`}>
                   {passwordData.newPassword === passwordData.confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}

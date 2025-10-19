@@ -80,55 +80,121 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log('🔐 Attempting login for:', email);
+      const emailLower = email.toLowerCase().trim();
+      console.log('🔐 Attempting login for:', emailLower);
       
-      // 1️⃣ محاولة تسجيل الدخول عبر Firebase Auth
+      // ✅ Method 1: Try Firebase Auth login first
       try {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
         console.log('✅ Firebase Auth login successful');
         return true;
       } catch (authError: any) {
-        console.log('⚠️ Firebase Auth failed, checking student accounts...');
+        console.log('⚠️ Firebase Auth failed:', authError.code);
+        console.log('🔍 Checking student accounts in children collection...');
         
-        // 2️⃣ إذا فشل Firebase Auth، نبحث في Student Accounts
-        const usersRef = ref(database, 'users');
-        const usersSnapshot = await get(usersRef);
+        // ✅ Method 2: Check children collection for student accounts
+        const childrenRef = ref(database, 'children');
+        const childrenSnapshot = await get(childrenRef);
         
-        if (usersSnapshot.exists()) {
-          const users = usersSnapshot.val();
+        if (childrenSnapshot.exists()) {
+          const children = childrenSnapshot.val();
+          const childrenCount = Object.keys(children).length;
+          console.log('📚 Total children in database:', childrenCount);
           
-          // البحث عن المستخدم بنفس الإيميل
-          for (const userId in users) {
-            const userData = users[userId];
+          if (childrenCount === 0) {
+            console.log('❌ No children found in database!');
+            return false;
+          }
+          
+          // Search for student with matching email
+          let foundCount = 0;
+          for (const childId in children) {
+            foundCount++;
+            const childData = children[childId];
             
-            if (userData.email === email && userData.role === 'student') {
-              console.log('👤 Found student user:', userData.name);
+            // Skip inactive children
+            if (childData.isActive === false) {
+              continue;
+            }
+            
+            // Get emails and normalize them
+            const studentEmail = childData.studentAccount?.email?.toLowerCase().trim();
+            const childEmail = childData.email?.toLowerCase().trim();
+            
+            console.log(`🔍 Checking child [${childId}]:`, {
+              name: childData.name,
+              childEmail: childEmail,
+              studentEmail: studentEmail,
+              hasStudentAccount: !!childData.studentAccount,
+              hasPassword: !!childData.studentAccount?.password
+            });
+            
+            // ✅ Check if email matches
+            const emailMatch = studentEmail === emailLower || childEmail === emailLower;
+            
+            if (emailMatch) {
+              console.log(`✅ Email match found for: ${childData.name}`);
               
-              // التحقق من الباسورد من children node
-              const childRef = ref(database, `children/${userData.childId}`);
-              const childSnapshot = await get(childRef);
+              // Check if student account exists
+              if (!childData.studentAccount) {
+                console.log('❌ Student account not created yet');
+                continue;
+              }
               
-              if (childSnapshot.exists()) {
-                const childData = childSnapshot.val();
+              // Check if password exists
+              if (!childData.studentAccount.password) {
+                console.log('❌ No password set for student account');
+                continue;
+              }
+              
+              // Verify password
+              if (childData.studentAccount.password === password) {
+                console.log('✅ Password verified!');
                 
-                if (childData.studentAccount?.password === password) {
-                  console.log('✅ Student password verified!');
-                  
-                  // تسجيل دخول الطالب
-                  setUser({
-                    id: userId,
-                    email: email,
-                    role: 'student',
-                    name: userData.name,
-                    timezone: userData.timezone || 'UTC',
-                    createdAt: userData.createdAt
-                  });
-                  
-                  return true;
+                // ✅ Get complete user data
+                const userRef = ref(database, `users/${childId}`);
+                const userSnapshot = await get(userRef);
+                
+                let userData: User = {
+                  id: childId,
+                  email: emailLower,
+                  role: 'student',
+                  name: childData.name,
+                  timezone: childData.timezone || 'UTC',
+                  createdAt: childData.createdAt || new Date().toISOString()
+                };
+
+                // Merge with users collection data if exists
+                if (userSnapshot.exists()) {
+                  const userDbData = userSnapshot.val();
+                  console.log('📝 User data from users collection:', userDbData);
+                  userData = {
+                    ...userData,
+                    name: userDbData.name || userData.name,
+                    timezone: userDbData.timezone || userData.timezone,
+                  };
                 }
+                
+                // ✅ Set user state
+                setUser(userData);
+                
+                // ✅ Store in localStorage for persistence
+                localStorage.setItem('studentSession', JSON.stringify(userData));
+                
+                console.log('✅ Student login successful!', userData);
+                return true;
+              } else {
+                console.log('❌ Invalid password');
+                console.log('Expected:', childData.studentAccount.password);
+                console.log('Provided:', password);
+                return false;
               }
             }
           }
+          
+          console.log('❌ No matching student account found');
+        } else {
+          console.log('❌ No children data in database');
         }
         
         console.log('❌ Login failed: Invalid credentials');
@@ -164,12 +230,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      // Check if user is logged in via Firebase Auth
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
+      
+      // Clear student session
+      localStorage.removeItem('studentSession');
+      
       setUser(null);
+      console.log('✅ Logged out successfully');
     } catch (error: any) {
+      console.error('Logout error:', error);
       throw new Error(error.message || 'Logout failed');
     }
   };
+
+  // ✅ Check for student session on mount
+  useEffect(() => {
+    // Only run after initial Firebase Auth check
+    if (!loading && !user && !auth.currentUser) {
+      const studentSession = localStorage.getItem('studentSession');
+      if (studentSession) {
+        try {
+          const userData = JSON.parse(studentSession);
+          console.log('🔄 Restoring student session:', userData.name);
+          setUser(userData);
+        } catch (error) {
+          console.error('Error restoring student session:', error);
+          localStorage.removeItem('studentSession');
+        }
+      }
+    }
+  }, [loading, user]);
 
   const value = {
     user,

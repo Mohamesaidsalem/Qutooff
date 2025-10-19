@@ -9,7 +9,6 @@ import EditChildModal from '../Modals/Parent/EditChildModal';
 import CreateStudentAccountModal from '../Modals/Parent/CreateStudentAccountModal';
 import ChangePasswordModal from '../Modals/Parent/ChangePasswordModal';
 
-
 export default function ParentDashboard() {
   const { user } = useAuth();
   const { 
@@ -41,6 +40,9 @@ export default function ParentDashboard() {
       const parentClasses = getUpcomingClassesForParent(user.id);
       const parentInvoices = getInvoicesForParent(user.id);
       const parentStats = getParentStats(user.id);
+
+      console.log('👨‍👩‍👦 ParentDashboard - Children:', parentChildren);
+      console.log('📅 ParentDashboard - Classes:', parentClasses);
 
       setChildren(parentChildren);
       setUpcomingClasses(parentClasses);
@@ -272,7 +274,7 @@ export default function ParentDashboard() {
                           <span>{formatDate(cls.date)}</span>
                           <span className="mx-2">•</span>
                           <BookOpen className="h-4 w-4" />
-                          <span>{cls.subject}</span>
+                          <span>{cls.subject || 'Quran'}</span>
                         </div>
                         <button
                           onClick={() => window.open(cls.zoomLink, '_blank')}
@@ -416,13 +418,13 @@ export default function ParentDashboard() {
                             <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[120px]">
                               <div 
                                 className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300" 
-                                style={{ width: `${child.progress}%` }}
+                                style={{ width: `${child.progress || 0}%` }}
                               ></div>
                             </div>
-                            <span className="text-sm font-semibold text-gray-900">{child.progress}%</span>
+                            <span className="text-sm font-semibold text-gray-900">{child.progress || 0}%</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{child.teacherName}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{child.teacherName || 'Not assigned'}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{child.nextClass || 'Not scheduled'}</td>
                         <td className="px-6 py-4">
                           <div className="flex gap-2">
@@ -433,7 +435,7 @@ export default function ParentDashboard() {
                             >
                               <Edit className="h-4 w-4" />
                             </button>
-                            {!child.studentAccount && (
+                            {!child.studentAccount ? (
                               <button 
                                 onClick={() => handleCreateAccount(child)}
                                 className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
@@ -441,8 +443,7 @@ export default function ParentDashboard() {
                               >
                                 <UserPlus className="h-4 w-4" />
                               </button>
-                            )}
-                            {child.studentAccount && (
+                            ) : (
                               <button 
                                 onClick={() => handleChangePassword(child)}
                                 className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" 
@@ -501,7 +502,7 @@ export default function ParentDashboard() {
                         <span>{formatDate(cls.date)}</span>
                         <span className="mx-2">•</span>
                         <BookOpen className="h-4 w-4" />
-                        <span>{cls.subject}</span>
+                        <span>{cls.subject || 'Quran'}</span>
                       </div>
                       <button
                         onClick={() => window.open(cls.zoomLink, '_blank')}

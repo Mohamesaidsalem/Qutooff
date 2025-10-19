@@ -4,6 +4,8 @@ import { database } from '../firebase/config';
 import { useAuth } from './AuthContext';
 
 export interface Child {
+  phone: string;
+  email: any;
   id: string;
   name: string;
   age: number;

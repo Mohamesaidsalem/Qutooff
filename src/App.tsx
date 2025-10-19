@@ -3,15 +3,15 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 
-// مكونات الرأس والتنقل
+// Components
 import Header from './components/Layout/Header';
 import LoginForm from './components/Auth/LoginForm';
 
-// مكونات الصفحة الرئيسية
+// Landing Page Components
 import Hero from './components/Landing/Hero';
 import CoursesTabs from './components/CoursesTabs';
 
-// مكونات لوحات القيادة
+// Dashboards
 import ParentDashboard from './components/Dashboards/ParentDashboard';
 import TeacherDashboard from './components/Dashboards/TeacherDashboard';
 import StudentDashboard from './components/Dashboards/StudentDashboard';
@@ -19,7 +19,7 @@ import AdminDashboard from './components/Dashboards/AdminDashboard';
 import SuperAdminDashboard from './components/Dashboards/SuperAdminDashboard';
 import AdminSectionManager from './components/Dashboards/AdminSectionManager';
 
-// مكونات الصفحات العامة والوظائف
+// Public Pages
 import CoursesPage from './components/CoursesPage';
 import FreeTrial from './components/Pages/FreeTrial';
 import WhyUs from './components/Pages/WhyUs';
@@ -31,9 +31,6 @@ import AdvanceClassScheduler from './components/Modals/Weekly Classes/AdvanceCla
 import PublicHolidaysManager from './components/Modals/Weekly Classes/PublicHolidaysManager';
 import SalaryClassReport from './components/Modals/Weekly Classes/SalaryClassReport';
 import DailyClassReport from './components/Modals/Weekly Classes/DailyClassReport';
-
-// ✅ مكونات Weekly Classes الجديدة
-
 
 interface CustomUser {
   role: 'parent' | 'teacher' | 'student' | 'admin' | 'super_admin' | string;
@@ -68,15 +65,22 @@ function AppContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-lg text-gray-700">Loading authentication data...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-700">Loading authentication data...</p>
+        </div>
       </div>
     );
   }
 
+  // ✅ FIX: Better Dashboard Router
   const getDashboardComponent = () => {
     if (!user || !user.role) {
-      return <div>Please log in to view the dashboard.</div>;
+      console.log('❌ No user or role found');
+      return <Navigate to="/" replace />;
     }
+    
+    console.log('✅ Routing user to dashboard:', user.role, user);
     
     switch (user.role) {
       case 'parent':
@@ -90,13 +94,22 @@ function AppContent() {
       case 'super_admin':
         return <SuperAdminDashboard />;
       default:
-        return <div>Invalid role</div>;
+        console.log('❌ Unknown role:', user.role);
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center bg-white p-8 rounded-lg shadow-lg">
+              <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid Role</h1>
+              <p className="text-gray-600 mb-4">Your account role is not recognized: <strong>{user.role}</strong></p>
+              <p className="text-sm text-gray-500">Please contact support.</p>
+            </div>
+          </div>
+        );
     }
   };
 
   const handleShowLogin = () => setShowLogin(true);
 
-  // ✅ دالة للتحقق من صلاحيات Admin/Super Admin
+  // ✅ Check if user is Admin or Super Admin
   const isAdminOrSuperAdmin = user && (user.role === 'admin' || user.role === 'super_admin');
 
   return (
@@ -104,6 +117,7 @@ function AppContent() {
       <Header onShowLogin={handleShowLogin} /> 
       
       <Routes>
+        {/* ✅ Main Route - Show Dashboard if logged in, Landing Page if not */}
         <Route 
           path="/" 
           element={
@@ -111,13 +125,14 @@ function AppContent() {
           } 
         />
 
-        {/* مسارات الصفحات العامة */}
+        {/* Public Pages */}
         <Route path="/courses" element={<CoursesPage onEnroll={handleShowLogin} />} />
         <Route path="/why-us" element={<WhyUs />} />
         <Route path="/reviews" element={<Reviews />} />
         <Route path="/free-trial" element={<FreeTrial />} />
         <Route path="/demo" element={<DropdownDemo />} />
         
+        {/* Protected Routes - Require Login */}
         <Route 
           path="/classes" 
           element={user ? <ClassManagement /> : <Navigate to="/" replace />} 
@@ -128,7 +143,7 @@ function AppContent() {
           element={isAdminOrSuperAdmin ? <AdminSectionManager /> : <Navigate to="/" replace />} 
         />
 
-        {/* ✅ مسارات Weekly Classes الجديدة - للـ Admin و Super Admin فقط */}
+        {/* Admin & Super Admin Only Routes */}
         <Route 
           path="/weekly-classes" 
           element={isAdminOrSuperAdmin ? <WeeklyClassesManager /> : <Navigate to="/" replace />} 
@@ -154,6 +169,7 @@ function AppContent() {
           element={isAdminOrSuperAdmin ? <DailyClassReport /> : <Navigate to="/" replace />} 
         />
 
+        {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       

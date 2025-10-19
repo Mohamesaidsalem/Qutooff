@@ -19,6 +19,12 @@ export default function TeacherScheduleManagement({
   onUpdateClass,
   onDeleteClass
 }: TeacherScheduleManagementProps) {
+  console.log('🔍 [TeacherScheduleManagement] Received props:', {
+    teachersCount: teachers.length,
+    teachers: teachers,
+    childrenCount: children.length,
+    classesCount: classes.length
+  });
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showCalendarView, setShowCalendarView] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
