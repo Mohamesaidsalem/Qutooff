@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, LogOut, DollarSign, Calendar, Shield, Settings, ChevronDown } from 'lucide-react';
+import { LogIn, LogOut, DollarSign, Calendar, Shield, Settings, ChevronDown, Menu, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ref, push, set } from 'firebase/database';
 import { database } from '../../firebase/config';
@@ -35,6 +35,7 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
   const navigate = useNavigate();
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
   const [dropdownTimeoutId, setDropdownTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { user, logout } = useAuth();
 
   // Add Options Modal states
@@ -80,6 +81,7 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
 
   const handleDropdownItemClick = (action: string) => {
     setShowOptionsDropdown(false);
+    setShowMobileMenu(false);
     
     switch(action) {
       // Invoice Section Actions
@@ -306,7 +308,7 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
               </div>
             )}
             
-            <div className="flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-4">
               {user && (
                 <div className="flex items-center space-x-3">
                   {(user.role === 'parent' || user.role === 'student' || user.role === 'teacher') && (
@@ -339,13 +341,13 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
 
                         {showOptionsDropdown && (
                           <div
-                            className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 rounded-lg shadow-2xl z-50 p-6 min-w-[800px] animate-in fade-in slide-in-from-top-2 duration-200"
+                            className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 rounded-lg shadow-2xl z-50 p-6 min-w-[800px] animate-in fade-in slide-in-from-top-2 duration-200 md:min-w-[800px] sm:min-w-[600px] xs:min-w-[400px]"
                             style={{ backgroundColor: "#064E3B", border: "2px solid #FFD700" }}
                             onMouseEnter={handleMouseEnterDropdown}
                             onMouseLeave={handleMouseLeaveDropdown}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="grid grid-cols-4 gap-8">
+                            <div className="grid grid-cols-4 gap-8 md:grid-cols-3 sm:grid-cols-2 xs:grid-cols-1">
                               {/* Invoice Section */}
                               <div className="flex flex-col min-w-[160px]">
                                 <h3 className="text-sm font-semibold mb-3 pb-2 uppercase tracking-wide" style={{ color: "#FFD700", borderBottom: "1px solid #FFD700" }}>
@@ -562,8 +564,183 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
                 </div>
               )}
             </div>
+
+            {/* Mobile Hamburger Menu */}
+            <div className="md:hidden flex items-center">
+              <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="text-yellow-500">
+                {showMobileMenu ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {showMobileMenu && (
+          <div className="md:hidden bg-emerald-900 border-t border-emerald-800 px-4 py-4 space-y-4">
+            {!user && (
+              <>
+                <div className="font-medium cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
+                  Courses
+                </div>
+                <div className="font-medium cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
+                  Why Us
+                </div>
+                <div className="font-medium cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
+                  Reviews
+                </div>
+              </>
+            )}
+
+            {user && (
+              <>
+                {(user.role === 'parent' || user.role === 'student' || user.role === 'teacher') && (
+                  <>
+                    <div className="font-medium flex items-center cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
+                      <Calendar className="h-4 w-4 mr-1" /> My Classes
+                    </div>
+                    <div className="font-medium flex items-center cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
+                      <DollarSign className="h-4 w-4 mr-1" /> Payments
+                    </div>
+                  </>
+                )}
+
+                {(user.role === 'admin' || user.role === 'super_admin') && (
+                  <>
+                    <div className="font-medium flex items-center cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
+                      <Settings className="h-4 w-4 mr-1" /> System
+                    </div>
+
+                    {/* Mobile Options */}
+                    <div className="space-y-6">
+                      {/* Invoice Section */}
+                      <div>
+                        <h3 className="text-sm font-semibold mb-2 uppercase tracking-wide" style={{ color: "#FFD700" }}>
+                          Invoice Section
+                        </h3>
+                        <div className="space-y-2">
+                          <button onClick={() => handleDropdownItemClick('Invoice Details')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Invoice Details
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Send Monthly Invoice')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Send Monthly Invoice
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Generate Monthly Salary')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Generate Monthly Salary
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Test Reports')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Test Reports
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Rules')} className="block text-sm flex items-center gap-2 text-left" style={{ color: "#D1D5DB" }}>
+                            <span>Rules</span>
+                            <span className="bg-red-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">New</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Weekly Classes */}
+                      <div>
+                        <h3 className="text-sm font-semibold mb-2 uppercase tracking-wide" style={{ color: "#FFD700" }}>
+                          Weekly Classes
+                        </h3>
+                        <div className="space-y-2">
+                          <button onClick={() => handleDropdownItemClick('Create Weekly Classes')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Create Weekly Classes
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Update Weekly Classes')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Update Weekly Classes
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Schedule Advance Class')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Schedule Advance Class
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Public Holidays')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Public Holidays
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Salary Class Report')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Salary Class Report
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Daily Class Report')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Daily Class Report
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Add Options */}
+                      <div>
+                        <h3 className="text-sm font-semibold mb-2 uppercase tracking-wide" style={{ color: "#FFD700" }}>
+                          Add Options
+                        </h3>
+                        <div className="space-y-2">
+                          <button onClick={() => handleDropdownItemClick('Add New Employee')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Add New Employee
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Add New Family')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Add New Family
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Add New Country')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Add New Country
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Add New Task')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Add New Task
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Add New Vendor')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Add New Vendor
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Add New Year')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Add New Year
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Other Options */}
+                      <div>
+                        <h3 className="text-sm font-semibold mb-2 uppercase tracking-wide" style={{ color: "#FFD700" }}>
+                          Other Options
+                        </h3>
+                        <div className="space-y-2">
+                          <button onClick={() => handleDropdownItemClick('New Requests')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            New Requests
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('See Test Status')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            See Test Status
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('List of Country')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            List of Country
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('SMS Services')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            SMS Services
+                          </button>
+                          <button onClick={() => handleDropdownItemClick('Complaints')} className="block text-sm text-left" style={{ color: "#D1D5DB" }}>
+                            Complaints
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="pt-4 border-t border-emerald-800">
+                  <div className="text-sm font-bold mb-1" style={{ color: "#FFD700" }}>
+                    {getUserRoleText(user.role)}: {user.name}
+                  </div>
+                  <button onClick={handleSignOut} className="w-full px-4 py-2 rounded-full font-semibold text-sm flex items-center justify-center transition-colors shadow-md hover:opacity-90" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
+                    <LogOut className="h-4 w-4 mr-1" /> Sign Out
+                  </button>
+                </div>
+              </>
+            )}
+
+            {!user && (
+              <div className="space-y-4 pt-4 border-t border-emerald-800">
+                <button className="w-full px-4 py-2 rounded-full font-semibold text-sm transition-colors shadow-md hover:opacity-90" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
+                  Get Free Trial
+                </button>
+                <button onClick={() => { onShowLogin(); setShowMobileMenu(false); }} className="w-full px-4 py-2 rounded-full font-semibold text-sm flex items-center justify-center transition-colors shadow-md hover:opacity-90" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
+                  <LogIn className="h-4 w-4 mr-1" /> Sign In
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Add Options Modals */}
