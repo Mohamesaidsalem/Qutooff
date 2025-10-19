@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { Users, Calendar, BookOpen, Clock, Video, DollarSign, Award, Star, CheckCircle, XCircle, AlertCircle, ChevronRight, MessageSquare, TrendingUp, X, BarChart, Home } from 'lucide-react';
 // 💡 استيراد الهوكات الجديدة
 import { useAuth } from '../../contexts/AuthContext'; 
@@ -42,6 +42,8 @@ export default function TeacherDashboard() {
     notes: '',
     nextLesson: ''
   });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // 3. منطق جلب وتصفية البيانات الحقيقية
   const allTeacherClasses = useMemo(() => {
@@ -89,6 +91,7 @@ export default function TeacherDashboard() {
   const handleCompleteClass = (classItem: ClassItem | null) => {
     setSelectedClass(classItem);
     setShowEvaluationModal(true);
+    setErrorMessage(null);
   };
 
   const submitEvaluation = async () => {
@@ -99,6 +102,7 @@ export default function TeacherDashboard() {
     }
     
     try {
+      setErrorMessage(null);
       // 1. تحديث حالة الحصة في قاعدة البيانات إلى 'completed'
       await updateClass(selectedClass.id, {
         status: 'completed',
@@ -119,21 +123,23 @@ export default function TeacherDashboard() {
       
     } catch (error) {
       console.error('Error submitting evaluation:', error);
-      alert('❌ Failed to save evaluation. Check console for details.');
+      setErrorMessage('❌ Failed to save evaluation. Please try again.');
     } finally {
       // 3. إغلاق المودال وتصفير الحالة بغض النظر عن النتيجة
-      setShowEvaluationModal(false);
-      setSelectedClass(null);
-      setEvaluation({
-        attendance: 'present',
-        performance: 5,
-        memorization: 5,
-        tajweed: 5,
-        participation: 5,
-        homework: 'completed',
-        notes: '',
-        nextLesson: ''
-      });
+      if (!errorMessage) {
+        setShowEvaluationModal(false);
+        setSelectedClass(null);
+        setEvaluation({
+          attendance: 'present',
+          performance: 5,
+          memorization: 5,
+          tajweed: 5,
+          participation: 5,
+          homework: 'completed',
+          notes: '',
+          nextLesson: ''
+        });
+      }
     }
   };
 
@@ -170,6 +176,23 @@ export default function TeacherDashboard() {
     { id: 'reports', name: 'Reports', icon: BarChart }, // تم إضافته
   ];
 
+  // Close modal on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        setShowEvaluationModal(false);
+      }
+    };
+
+    if (showEvaluationModal) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEvaluationModal]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -190,6 +213,9 @@ export default function TeacherDashboard() {
                   ? 'border-b-4 border-blue-600 text-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
+              aria-label={`Switch to ${tab.name} tab`}
+              aria-selected={activeTab === tab.id}
+              role="tab"
             >
                 <tab.icon className="h-5 w-5" />
               {tab.name}
@@ -207,7 +233,7 @@ export default function TeacherDashboard() {
         {activeTab === 'dashboard' && (
           <>
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {stats.map((item) => (
                 <div key={item.name} className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
                   <div className="flex items-center justify-between mb-4">
@@ -244,6 +270,7 @@ export default function TeacherDashboard() {
                       <button
                         onClick={() => window.open(cls.zoomLink, '_blank')}
                         className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2"
+                        aria-label={`Start class with ${cls.studentName}`}
                       >
                         <Video className="h-4 w-4" />
                         Start Class
@@ -291,7 +318,7 @@ export default function TeacherDashboard() {
                               )}
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm">
                               <div className="flex items-center gap-2 text-gray-700">
                                 <Calendar className="h-4 w-4 text-blue-500" />
                                 <span>{cls.date}</span>
@@ -315,10 +342,11 @@ export default function TeacherDashboard() {
                               </div>
                             )}
 
-                            <div className="flex gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
                               <button
                                 onClick={() => window.open(cls.zoomLink, '_blank')}
                                 className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2.5 rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2"
+                                aria-label={`Start class with ${cls.studentName}`}
                               >
                                 <Video className="h-4 w-4" />
                                 Start Class
@@ -326,6 +354,7 @@ export default function TeacherDashboard() {
                               <button
                                 onClick={() => handleCompleteClass(cls)}
                                 className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2.5 rounded-lg font-medium hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2"
+                                aria-label={`End and evaluate class with ${cls.studentName}`}
                               >
                                 <CheckCircle className="h-4 w-4" />
                                 End & Evaluate
@@ -352,6 +381,9 @@ export default function TeacherDashboard() {
                         // ✅ جعل العنصر قابلاً للنقر للانتقال لتبويب الطلاب
                         onClick={() => setActiveTab('students')}
                         className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl p-4 hover:shadow-md transition-all cursor-pointer"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`View details for student ${student.name}`}
                       >
                         <div className="flex items-center gap-3 mb-3">
                           <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white font-bold text-lg">
@@ -389,6 +421,7 @@ export default function TeacherDashboard() {
                   <button  
                     onClick={() => setActiveTab('students')}  
                     className="w-full mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    aria-label="View all students"
                   >  
                     View All Students →
                   </button>
@@ -425,17 +458,23 @@ export default function TeacherDashboard() {
 
         {/* ✅ Students Tab Content */}
         {activeTab === 'students' && (
-          <TeacherStudents />
+          <Suspense fallback={<div className="text-center p-8">Loading Students...</div>}>
+            <TeacherStudents />
+          </Suspense>
         )}
         
         {/* ✅ Calendar Tab Content (جديد) */}
         {activeTab === 'calendar' && (
+          <Suspense fallback={<div className="text-center p-8">Loading Calendar...</div>}>
             <TeacherCalendar />
+          </Suspense>
         )}
 
         {/* ✅ Reports Tab Content (جديد) */}
         {activeTab === 'reports' && (
+          <Suspense fallback={<div className="text-center p-8">Loading Reports...</div>}>
             <TeacherReportsAnalytics />
+          </Suspense>
         )}
         
         {/* ========================================================= */}
@@ -443,19 +482,27 @@ export default function TeacherDashboard() {
 
       {/* Evaluation Modal */}
       {showEvaluationModal && selectedClass && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-4 flex justify-between items-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-auto">
+          <div ref={modalRef} className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-4 flex justify-between items-center z-10">
               <h2 className="text-2xl font-bold text-white">Class Evaluation</h2>
               <button
                 onClick={() => setShowEvaluationModal(false)}
                 className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-all"
+                aria-label="Close evaluation modal"
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
 
             <div className="p-6">
+              {/* Error Message */}
+              {errorMessage && (
+                <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6">
+                  {errorMessage}
+                </div>
+              )}
+
               {/* Class Info */}
               <div className="bg-blue-50 rounded-xl p-4 mb-6">
                 <div className="flex items-center gap-3 mb-2">
@@ -467,7 +514,7 @@ export default function TeacherDashboard() {
                     <p className="text-sm text-gray-600">{selectedClass.subject}</p>
                   </div>
                 </div>
-                <div className="flex gap-4 text-sm text-gray-600">
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                   <span>📅 {selectedClass.date}</span>
                   <span>⏰ {selectedClass.time}</span>
                   <span>⏱️ {selectedClass.duration} mins</span>
@@ -479,7 +526,7 @@ export default function TeacherDashboard() {
                 {/* Attendance */}
                 <div>
                   <label className="block text-sm font-bold text-gray-900 mb-3">Attendance</label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {['present', 'absent', 'late'].map((status) => (
                       <button
                         key={status}
@@ -489,6 +536,7 @@ export default function TeacherDashboard() {
                             ? 'bg-blue-600 text-white shadow-lg'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
+                        aria-pressed={evaluation.attendance === status}
                       >
                         {status === 'present' ? '✅ Present' : status === 'absent' ? '❌ Absent' : '⏰ Late'}
                       </button>
@@ -505,6 +553,7 @@ export default function TeacherDashboard() {
                         key={rating}
                         onClick={() => setEvaluation({ ...evaluation, performance: rating })}
                         className="p-2 transition-all"
+                        aria-label={`Rate performance ${rating} out of 5`}
                       >
                         <Star
                           className={`h-10 w-10 ${
@@ -528,6 +577,7 @@ export default function TeacherDashboard() {
                     value={evaluation.memorization}
                     onChange={(e) => setEvaluation({ ...evaluation, memorization: Number(e.target.value) })}
                     className="w-full h-3 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                    aria-label="Memorization rating"
                   />
                   <div className="flex justify-between text-xs text-gray-600 mt-1">
                     <span>Weak</span>
@@ -545,6 +595,7 @@ export default function TeacherDashboard() {
                     value={evaluation.tajweed}
                     onChange={(e) => setEvaluation({ ...evaluation, tajweed: Number(e.target.value) })}
                     className="w-full h-3 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                    aria-label="Tajweed rating"
                   />
                   <div className="flex justify-between text-xs text-gray-600 mt-1">
                     <span>Weak</span>
@@ -562,6 +613,7 @@ export default function TeacherDashboard() {
                     value={evaluation.participation}
                     onChange={(e) => setEvaluation({ ...evaluation, participation: Number(e.target.value) })}
                     className="w-full h-3 bg-purple-200 rounded-lg appearance-none cursor-pointer"
+                    aria-label="Participation rating"
                   />
                   <div className="flex justify-between text-xs text-gray-600 mt-1">
                     <span>Weak</span>
@@ -572,7 +624,7 @@ export default function TeacherDashboard() {
                 {/* Homework */}
                 <div>
                   <label className="block text-sm font-bold text-gray-900 mb-3">Homework</label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {['completed', 'partial', 'not-done'].map((status) => (
                       <button
                         key={status}
@@ -582,6 +634,7 @@ export default function TeacherDashboard() {
                             ? 'bg-green-600 text-white shadow-lg'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
+                        aria-pressed={evaluation.homework === status}
                       >
                         {status === 'completed' ? '✅ Completed' : status === 'partial' ? '⚠️ Partial' : '❌ Not Done'}
                       </button>
@@ -598,6 +651,7 @@ export default function TeacherDashboard() {
                     className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows={4}
                     placeholder="Write your notes here..."
+                    aria-label="Evaluation notes"
                   />
                 </div>
 
@@ -610,21 +664,24 @@ export default function TeacherDashboard() {
                     onChange={(e) => setEvaluation({ ...evaluation, nextLesson: e.target.value })}
                     className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Example: Surah Al-Kahf from verse 1 to 10"
+                    aria-label="Next lesson plan"
                   />
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 mt-8">
+              <div className="flex flex-col sm:flex-row gap-3 mt-8">
                 <button
                   onClick={() => setShowEvaluationModal(false)}
                   className="flex-1 bg-gray-200 text-gray-800 py-3 px-6 rounded-xl font-bold hover:bg-gray-300 transition-all"
+                  aria-label="Cancel evaluation"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={submitEvaluation}
                   className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-6 rounded-xl font-bold hover:from-green-700 hover:to-green-800 transition-all shadow-lg"
+                  aria-label="Save evaluation"
                 >
                   Save Evaluation
                 </button>
