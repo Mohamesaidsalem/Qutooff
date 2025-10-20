@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Clock, Users, Calendar, CheckCircle, XCircle, AlertCircle, Coffee, UserX, Pause,
-  RotateCcw, Eye, Edit, Download, RefreshCw, BookOpen, TimerIcon, Grid3x3, Table, 
-  History, Plus, Trash2, Video, FileText, Star, Award, TrendingUp, Filter
+  RotateCcw, Eye, Edit, Download, RefreshCw, BookOpen, Grid3x3, Table, 
+  History, Plus, Trash2, Video, FileText, Star, Award, TrendingUp, Filter, UserCog
 } from 'lucide-react';
 import { ref, onValue, off, update, push, set } from 'firebase/database';
 import { database } from '../../firebase/config';
@@ -16,10 +16,14 @@ interface DailyClass {
   courseName?: string;
   appointmentTime: string;
   appointmentDate: string;
-  teacherTime?: string;
-  studentTime?: string;
-  onlineTime?: string;
-  completedAt?: string;
+  
+  // 🔥 الأوقات الخمسة الجديدة
+  adminTime?: string;        // وقت إنشاء الحصة من الأدمن
+  teacherTime?: string;      // وقت دخول المدرس
+  studentTime?: string;      // وقت دخول الطالب
+  onlineTime?: string;       // وقت بدء الحصة الفعلي
+  completedAt?: string;      // وقت الإنهاء
+  
   status: 'scheduled' | 'taken' | 'absent' | 'leave' | 'declined' | 'suspended' | 'trial' | 'advance' | 'rescheduled' | 'running' | 'refused';
   history: string[];
   createdAt: string;
@@ -29,6 +33,18 @@ interface DailyClass {
   zoomLink?: string;
   rating?: number;
   feedback?: string;
+  
+  // 🔥 Shift Teacher الجديد
+  originalTeacherId?: string;
+  shiftHistory?: Array<{
+    from: string;
+    to: string;
+    fromName: string;
+    toName: string;
+    reason: string;
+    shiftedAt: string;
+    shiftedBy: string;
+  }>;
 }
 
 interface Course {
@@ -66,6 +82,15 @@ export default function DailyClassesManagement({ teachers, children, classes, on
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
   const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  
+  // 🔥 حالات جديدة لـ Shift Teacher
+  const [showShiftModal, setShowShiftModal] = useState(false);
+  const [selectedClassForShift, setSelectedClassForShift] = useState<DailyClass | null>(null);
+  const [shiftData, setShiftData] = useState({
+    newTeacherId: '',
+    reason: ''
+  });
+  
   const [formData, setFormData] = useState({
     studentId: '',
     teacherId: '',
@@ -191,7 +216,8 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         zoomLink: formData.zoomLink,
         notes: formData.notes,
         history: [`Class created at ${new Date().toLocaleString()}`],
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        adminTime: new Date().toISOString() // 🔥 حفظ وقت الأدمن
       };
 
       const classesRef = ref(database, 'daily_classes');
@@ -219,10 +245,11 @@ export default function DailyClassesManagement({ teachers, children, classes, on
       history: [...currentHistory, `Status changed to ${newStatus} at ${new Date().toLocaleString()}`]
     };
     
+    // 🔥 حفظ الأوقات المختلفة حسب الحالة
     if (newStatus === 'running') {
-      updates.onlineTime = currentTime;
+      updates.onlineTime = currentTime; // وقت بدء الحصة
     } else if (newStatus === 'taken') {
-      updates.completedAt = currentTime;
+      updates.completedAt = currentTime; // وقت الإنهاء
     }
     
     try {
@@ -248,6 +275,58 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     }
   };
 
+  // 🔥 دالة فتح مودال Shift Teacher
+  const handleOpenShiftModal = (classItem: DailyClass) => {
+    setSelectedClassForShift(classItem);
+    setShiftData({ newTeacherId: '', reason: '' });
+    setShowShiftModal(true);
+  };
+
+  // 🔥 دالة تأكيد Shift Teacher
+  const handleConfirmShift = async () => {
+    if (!selectedClassForShift || !shiftData.newTeacherId || !shiftData.reason) {
+      alert('Please select a teacher and provide a reason');
+      return;
+    }
+
+    try {
+      const oldTeacher = teachers.find(t => t.id === selectedClassForShift.teacherId);
+      const newTeacher = teachers.find(t => t.id === shiftData.newTeacherId);
+
+      const shiftRecord = {
+        from: selectedClassForShift.teacherId,
+        to: shiftData.newTeacherId,
+        fromName: oldTeacher?.name || 'Unknown',
+        toName: newTeacher?.name || 'Unknown',
+        reason: shiftData.reason,
+        shiftedAt: new Date().toISOString(),
+        shiftedBy: 'Admin' // يمكن تغييرها حسب المستخدم الحالي
+      };
+
+      const updates = {
+        originalTeacherId: selectedClassForShift.originalTeacherId || selectedClassForShift.teacherId,
+        teacherId: shiftData.newTeacherId,
+        shiftHistory: [...(selectedClassForShift.shiftHistory || []), shiftRecord],
+        history: [
+          ...(selectedClassForShift.history || []),
+          `Teacher changed from ${shiftRecord.fromName} to ${shiftRecord.toName} - Reason: ${shiftData.reason}`
+        ],
+        updatedAt: new Date().toISOString()
+      };
+
+      const classRef = ref(database, `daily_classes/${selectedClassForShift.id}`);
+      await update(classRef, updates);
+
+      alert('Teacher shifted successfully!');
+      setShowShiftModal(false);
+      setSelectedClassForShift(null);
+      setShiftData({ newTeacherId: '', reason: '' });
+    } catch (error) {
+      console.error('Error shifting teacher:', error);
+      alert('Error shifting teacher. Please try again.');
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       studentId: '',
@@ -265,7 +344,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     const iconProps = { className: "h-4 w-4" };
     switch (status) {
       case 'taken': return <CheckCircle {...iconProps} className="h-4 w-4 text-green-600" />;
-      case 'running': return <TimerIcon {...iconProps} className="h-4 w-4 text-blue-600" />;
+      case 'running': return <Clock {...iconProps} className="h-4 w-4 text-blue-600" />;
       case 'scheduled': return <Clock {...iconProps} className="h-4 w-4 text-yellow-600" />;
       case 'absent': return <UserX {...iconProps} className="h-4 w-4 text-red-600" />;
       case 'leave': return <Coffee {...iconProps} className="h-4 w-4 text-orange-600" />;
@@ -293,6 +372,20 @@ export default function DailyClassesManagement({ teachers, children, classes, on
       case 'rescheduled': return 'bg-indigo-100 text-indigo-800';
       case 'refused': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // 🔥 دالة تنسيق الوقت
+  const formatTime = (isoString?: string) => {
+    if (!isoString) return 'N/A';
+    try {
+      return new Date(isoString).toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return 'Invalid';
     }
   };
 
@@ -333,7 +426,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       </div>
 
-      {/* Statistics */}
+      {/* Statistics - 🔥 مع إضافة Taken Card */}
       <div className="space-y-3">
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-lg shadow text-white">
@@ -341,18 +434,21 @@ export default function DailyClassesManagement({ teachers, children, classes, on
             <p className="text-xs opacity-90">Total</p>
             <p className="text-2xl font-bold">{stats.total}</p>
           </div>
+          
+          {/* 🔥 TAKEN CARD */}
           <div className="bg-gradient-to-br from-green-500 to-green-600 p-3 rounded-lg shadow text-white">
             <CheckCircle className="h-6 w-6 mb-1" />
-            <p className="text-xs opacity-90">Completed</p>
+            <p className="text-xs opacity-90">Taken</p>
             <p className="text-2xl font-bold">{stats.taken}</p>
           </div>
+          
           <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 p-3 rounded-lg shadow text-white">
             <Clock className="h-6 w-6 mb-1" />
             <p className="text-xs opacity-90">Scheduled</p>
             <p className="text-2xl font-bold">{stats.remaining}</p>
           </div>
           <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-3 rounded-lg shadow text-white">
-            <TimerIcon className="h-6 w-6 mb-1" />
+            <Clock className="h-6 w-6 mb-1" />
             <p className="text-xs opacity-90">Running</p>
             <p className="text-2xl font-bold">{stats.running}</p>
           </div>
@@ -456,6 +552,36 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   </span>
                 </div>
 
+                {/* 🔥 عرض الأوقات الخمسة */}
+                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="h-4 w-4 text-blue-600" />
+                    <span className="text-xs font-bold text-blue-900">CLASS TIMES</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Admin Time:</span>
+                      <span className="font-semibold text-gray-900">{formatTime(classItem.adminTime)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Teacher Time:</span>
+                      <span className="font-semibold text-gray-900">{formatTime(classItem.teacherTime)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Student Time:</span>
+                      <span className="font-semibold text-gray-900">{formatTime(classItem.studentTime)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Online Time:</span>
+                      <span className="font-semibold text-green-600">{formatTime(classItem.onlineTime)}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1 mt-1">
+                      <span className="text-gray-600 font-bold">Appointment:</span>
+                      <span className="font-bold text-blue-600">{classItem.appointmentTime}</span>
+                    </div>
+                  </div>
+                </div>
+
                 {course && (
                   <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
                     <div className="flex items-center gap-2 mb-1">
@@ -491,6 +617,19 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   <p className="text-xs text-gray-500 mb-1 font-semibold">TEACHER</p>
                   <p className="text-sm font-bold text-gray-900">{teacher?.name || 'Unknown'}</p>
                   <p className="text-xs text-gray-600">{teacher?.subject || teacher?.specialization || 'No subject'}</p>
+                  
+                  {/* 🔥 عرض تنبيه إذا تم تغيير المدرس */}
+                  {classItem.shiftHistory && classItem.shiftHistory.length > 0 && (
+                    <div className="mt-2 p-2 bg-orange-100 rounded border border-orange-300">
+                      <p className="text-xs text-orange-700 font-semibold flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        Teacher Shifted
+                      </p>
+                      <p className="text-xs text-orange-600">
+                        From: {classItem.shiftHistory[classItem.shiftHistory.length - 1].fromName}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t">
@@ -500,7 +639,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         onClick={() => handleUpdateStatus(classItem.id, 'running')}
                         className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                       >
-                        <TimerIcon className="h-3 w-3" />
+                        <Clock className="h-3 w-3" />
                         Start
                       </button>
                       <button 
@@ -521,6 +660,16 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                       Complete
                     </button>
                   )}
+                  
+                  {/* 🔥 زر Shift Teacher */}
+                  <button 
+                    onClick={() => handleOpenShiftModal(classItem)}
+                    className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                  >
+                    <UserCog className="h-3 w-3" />
+                    Shift
+                  </button>
+                  
                   <button 
                     onClick={() => setShowStudentDetails(classItem.studentId)}
                     className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
@@ -540,7 +689,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                       href={classItem.zoomLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="col-span-2 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                      className="col-span-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                     >
                       <Video className="h-3 w-3" />
                       Join Zoom
@@ -608,7 +757,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       )}
 
-      {/* Table View */}
+      {/* Table View - 🔥 بنفس ترتيب الصورة بالضبط */}
       {viewMode === 'table' && filteredClasses.length > 0 && (
         <div className="bg-white shadow-lg rounded-xl border-2 border-gray-100 overflow-hidden">
           <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -620,13 +769,17 @@ export default function DailyClassesManagement({ teachers, children, classes, on
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">A-Time</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Course</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">T-Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">S-Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Online</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Student</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">History</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Teacher</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Shift</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -637,98 +790,195 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   
                   return (
                     <tr key={classItem.id} className="hover:bg-blue-50 transition-colors">
+                      {/* ID */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs font-mono font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                          #{classItem.id.slice(-6)}
+                          {classItem.id.slice(-7)}
                         </span>
                       </td>
+                      
+                      {/* A-Time (Admin Time) */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-semibold text-gray-900">{classItem.appointmentDate}</span>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-purple-600" />
+                          <span className="text-xs font-semibold text-gray-900">{formatTime(classItem.adminTime)}</span>
                         </div>
                       </td>
+                      
+                      {/* Date */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-semibold text-gray-900">{classItem.appointmentTime}</span>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-blue-600" />
+                          <span className="text-xs font-bold text-gray-900">{classItem.appointmentDate}</span>
+                        </div>
+                        <div className="text-xs text-gray-600">{classItem.appointmentTime}</div>
+                      </td>
+                      
+                      {/* T-Time (Teacher Time) */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-indigo-600" />
+                          <span className="text-xs font-semibold text-gray-900">{formatTime(classItem.teacherTime)}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        {course ? (
-                          <div>
-                            <div className="text-sm font-bold text-purple-900">{course.title}</div>
-                            <div className="text-xs text-purple-600">{course.level}</div>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">No course</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div>
-                            <div className="text-sm font-semibold text-gray-900">{student?.name || 'Unknown'}</div>
-                            <div className="text-xs text-gray-500">{student?.level || 'No level'}</div>
-                          </div>
-                          <button 
-                            onClick={() => setShowStudentDetails(classItem.studentId)}
-                            className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded transition-colors"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
+                      
+                      {/* S-Time (Student Time) */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-cyan-600" />
+                          <span className="text-xs font-semibold text-gray-900">{formatTime(classItem.studentTime)}</span>
                         </div>
                       </td>
+                      
+                      {/* Online Time */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-green-600" />
+                          <span className="text-xs font-bold text-green-600">{formatTime(classItem.onlineTime)}</span>
+                        </div>
+                      </td>
+                      
+                      {/* Student */}
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-semibold text-gray-900">{student?.name || 'Unknown'}</div>
+                        <div className="text-xs text-gray-500">{student?.level || 'No level'}</div>
+                      </td>
+                      
+                      {/* History */}
+                      <td className="px-4 py-3 text-center">
+                        <button 
+                          onClick={() => setShowHistoryModal(classItem.id)}
+                          className="p-2 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors inline-flex"
+                          title="View History"
+                        >
+                          <History className="h-4 w-4 text-purple-600" />
+                        </button>
+                      </td>
+                      
+                      {/* Teacher */}
                       <td className="px-4 py-3">
                         <div className="text-sm font-semibold text-gray-900">{teacher?.name || 'Unknown'}</div>
                         <div className="text-xs text-gray-500">{teacher?.subject || teacher?.specialization || 'No subject'}</div>
+                        {classItem.shiftHistory && classItem.shiftHistory.length > 0 && (
+                          <div className="text-xs text-orange-600 font-semibold mt-1 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            Shifted
+                          </div>
+                        )}
                       </td>
+                      
+                      {/* Status */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(classItem.status)}
-                          <span className={`px-3 py-1 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
+                          <span className={`px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
                             {classItem.status}
                           </span>
                         </div>
                       </td>
+                      
+                      {/* 🔥 Shift - زر لوحده */}
+                      <td className="px-4 py-3 text-center">
+                        <button 
+                          onClick={() => handleOpenShiftModal(classItem)}
+                          className="p-2 hover:bg-orange-50 rounded-lg border border-orange-300 transition-colors inline-flex items-center justify-center bg-orange-50"
+                          title="Shift Teacher"
+                        >
+                          <UserCog className="h-4 w-4 text-orange-600" />
+                        </button>
+                      </td>
+                      
+                      {/* 🔥 Action - كل الأكشن بالتفصيل حسب الحالة */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1">
+                          {/* 🔥 Scheduled: Start + Absent */}
                           {classItem.status === 'scheduled' && (
                             <>
                               <button 
                                 onClick={() => handleUpdateStatus(classItem.id, 'running')}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                                title="Start Class"
                               >
                                 Start
                               </button>
                               <button 
                                 onClick={() => handleUpdateStatus(classItem.id, 'absent')}
-                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                                className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                                title="Mark Absent"
                               >
                                 Absent
                               </button>
                             </>
                           )}
+                          
+                          {/* 🔥 Running: Complete (Taken) */}
                           {classItem.status === 'running' && (
                             <button 
                               onClick={() => handleUpdateStatus(classItem.id, 'taken')}
-                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                              title="Mark as Taken/Complete"
                             >
                               Complete
                             </button>
                           )}
+                          
+                          {/* 🔥 Taken: Show badge */}
+                          {classItem.status === 'taken' && (
+                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">
+                              ✓ Completed
+                            </span>
+                          )}
+                          
+                          {/* 🔥 Absent: Reschedule option */}
+                          {classItem.status === 'absent' && (
+                            <button 
+                              onClick={() => handleUpdateStatus(classItem.id, 'rescheduled')}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                              title="Reschedule"
+                            >
+                              Reschedule
+                            </button>
+                          )}
+                          
+                          {/* 🔥 Leave/Declined/Suspended: Restore option */}
+                          {(classItem.status === 'leave' || classItem.status === 'declined' || classItem.status === 'suspended') && (
+                            <button 
+                              onClick={() => handleUpdateStatus(classItem.id, 'scheduled')}
+                              className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                              title="Restore to Scheduled"
+                            >
+                              Restore
+                            </button>
+                          )}
+                          
+                          {/* 🔥 View Student - دايماً موجود */}
                           <button 
-                            onClick={() => setShowHistoryModal(classItem.id)}
-                            className="p-2 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors"
-                            title="View History"
+                            onClick={() => setShowStudentDetails(classItem.studentId)}
+                            className="p-1 hover:bg-indigo-50 rounded border border-indigo-200 transition-colors"
+                            title="View Student Details"
                           >
-                            <History className="h-4 w-4 text-purple-600" />
+                            <Eye className="h-4 w-4 text-indigo-600" />
                           </button>
+                          
+                          {/* 🔥 More Options - دايماً موجود */}
                           <div className="relative group">
-                            <button className="p-2 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
+                            <button className="p-1 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
                               <Edit className="h-4 w-4 text-gray-600" />
                             </button>
                             <div className="absolute right-0 top-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-2xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 min-w-[160px]">
                               <div className="px-3 py-2 text-xs font-bold text-gray-500 border-b mb-1">CHANGE STATUS</div>
+                              <button onClick={() => handleUpdateStatus(classItem.id, 'scheduled')} className="w-full text-left px-4 py-2 text-xs hover:bg-blue-50 text-blue-600 font-semibold flex items-center gap-2">
+                                <Clock className="h-3 w-3" /> Schedule
+                              </button>
+                              <button onClick={() => handleUpdateStatus(classItem.id, 'running')} className="w-full text-left px-4 py-2 text-xs hover:bg-cyan-50 text-cyan-600 font-semibold flex items-center gap-2">
+                                <Clock className="h-3 w-3" /> Start Running
+                              </button>
+                              <button onClick={() => handleUpdateStatus(classItem.id, 'taken')} className="w-full text-left px-4 py-2 text-xs hover:bg-green-50 text-green-600 font-semibold flex items-center gap-2">
+                                <CheckCircle className="h-3 w-3" /> Mark Taken
+                              </button>
+                              <button onClick={() => handleUpdateStatus(classItem.id, 'absent')} className="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 font-semibold flex items-center gap-2">
+                                <UserX className="h-3 w-3" /> Mark Absent
+                              </button>
                               <button onClick={() => handleUpdateStatus(classItem.id, 'leave')} className="w-full text-left px-4 py-2 text-xs hover:bg-orange-50 text-orange-600 font-semibold flex items-center gap-2">
                                 <Coffee className="h-3 w-3" /> Mark Leave
                               </button>
@@ -751,6 +1001,18 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                               <button onClick={() => handleUpdateStatus(classItem.id, 'advance')} className="w-full text-left px-4 py-2 text-xs hover:bg-teal-50 text-teal-600 font-semibold flex items-center gap-2">
                                 <RefreshCw className="h-3 w-3" /> Mark Advance
                               </button>
+                              <div className="border-t my-1"></div>
+                              {/* 🔥 Zoom في الآخر داخل القائمة */}
+                              {classItem.zoomLink && (
+                                <a 
+                                  href={classItem.zoomLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full text-left px-4 py-2 text-xs hover:bg-green-50 text-green-600 font-semibold flex items-center gap-2"
+                                >
+                                  <Video className="h-3 w-3" /> Join Zoom
+                                </a>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -773,7 +1035,118 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       )}
 
-      {/* Add Class Modal */}
+      {/* 🔥 Shift Teacher Modal */}
+      {showShiftModal && selectedClassForShift && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-gradient-to-r from-orange-600 to-orange-700 rounded-xl shadow-lg">
+                    <UserCog className="h-6 w-6 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">Shift Teacher</h2>
+                </div>
+                <button onClick={() => setShowShiftModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Current Class Info */}
+              <div className="mb-6 p-4 bg-yellow-50 rounded-xl border-2 border-yellow-200">
+                <p className="text-sm font-bold text-yellow-900 mb-2">Current Class Information:</p>
+                <div className="space-y-1 text-sm text-yellow-800">
+                  <p><strong>Date:</strong> {selectedClassForShift.appointmentDate}</p>
+                  <p><strong>Time:</strong> {selectedClassForShift.appointmentTime}</p>
+                  <p><strong>Current Teacher:</strong> {teachers.find(t => t.id === selectedClassForShift.teacherId)?.name}</p>
+                  <p><strong>Student:</strong> {children.find(c => c.id === selectedClassForShift.studentId)?.name}</p>
+                </div>
+              </div>
+
+              {/* Shift History */}
+              {selectedClassForShift.shiftHistory && selectedClassForShift.shiftHistory.length > 0 && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    Shift History:
+                  </p>
+                  <div className="space-y-2">
+                    {selectedClassForShift.shiftHistory.map((shift, idx) => (
+                      <div key={idx} className="text-xs bg-white p-3 rounded-lg border">
+                        <p className="font-semibold text-gray-900">
+                          {shift.fromName} → {shift.toName}
+                        </p>
+                        <p className="text-gray-600">Reason: {shift.reason}</p>
+                        <p className="text-gray-500">
+                          {new Date(shift.shiftedAt).toLocaleString()} by {shift.shiftedBy}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <form className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    New Teacher *
+                  </label>
+                  <select
+                    value={shiftData.newTeacherId}
+                    onChange={(e) => setShiftData({...shiftData, newTeacherId: e.target.value})}
+                    className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select a teacher...</option>
+                    {teachers
+                      .filter(t => t.id !== selectedClassForShift.teacherId)
+                      .map(teacher => (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.name} - {teacher.email}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Reason for Shift *
+                  </label>
+                  <textarea
+                    value={shiftData.reason}
+                    onChange={(e) => setShiftData({...shiftData, reason: e.target.value})}
+                    className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    rows={4}
+                    placeholder="Please provide a reason (e.g., teacher sick, emergency, unavailable, etc.)"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setShowShiftModal(false)}
+                    className="flex-1 bg-gray-200 text-gray-800 py-3 px-4 rounded-xl hover:bg-gray-300 transition-colors font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmShift}
+                    className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 px-4 rounded-xl hover:from-orange-700 hover:to-orange-800 transition-all font-bold shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <UserCog className="h-5 w-5" />
+                    Confirm Shift
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Class Modal - الكود الأصلي كما هو */}
       {showAddClassModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto">
@@ -848,7 +1221,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       )}
 
-      {/* History Modal */}
+      {/* History Modal - الكود الأصلي كما هو */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto">
@@ -901,7 +1274,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       )}
 
-      {/* Student Details Modal */}
+      {/* Student Details Modal - الكود الأصلي كما هو */}
       {showStudentDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-auto max-h-[90vh] overflow-y-auto">
