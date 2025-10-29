@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Users, TrendingUp, Calendar, DollarSign, Video, Plus, Edit, UserPlus, Key, BookOpen, Bell, CreditCard, FileText, Clock, CheckCircle, AlertCircle, Download, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Users, TrendingUp, Calendar, DollarSign, Video, Plus, Edit, 
+  UserPlus, Key, BookOpen, Bell, CreditCard, FileText, Clock, 
+  CheckCircle, AlertCircle, Download, Trash2, Home 
+} from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 
@@ -10,9 +15,11 @@ import CreateStudentAccountModal from '../Modals/Parent/CreateStudentAccountModa
 import ChangePasswordModal from '../Modals/Parent/ChangePasswordModal';
 
 export default function ParentDashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { 
     getChildrenByParent, 
+    getFamiliesByParent, // ✅ NEW
     getUpcomingClassesForParent, 
     getInvoicesForParent,
     getParentStats,
@@ -22,6 +29,7 @@ export default function ParentDashboard() {
 
   const [activeTab, setActiveTab] = useState('overview');
   const [children, setChildren] = useState<any[]>([]);
+  const [families, setFamilies] = useState<any[]>([]); // ✅ NEW
   const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -37,19 +45,22 @@ export default function ParentDashboard() {
   useEffect(() => {
     if (user && user.id) {
       const parentChildren = getChildrenByParent(user.id);
+      const parentFamilies = getFamiliesByParent(user.id); // ✅ NEW
       const parentClasses = getUpcomingClassesForParent(user.id);
       const parentInvoices = getInvoicesForParent(user.id);
       const parentStats = getParentStats(user.id);
 
       console.log('👨‍👩‍👦 ParentDashboard - Children:', parentChildren);
+      console.log('🏠 ParentDashboard - Families:', parentFamilies); // ✅ NEW
       console.log('📅 ParentDashboard - Classes:', parentClasses);
 
       setChildren(parentChildren);
+      setFamilies(parentFamilies); // ✅ NEW
       setUpcomingClasses(parentClasses);
       setInvoices(parentInvoices);
       setStats(parentStats);
     }
-  }, [user, getChildrenByParent, getUpcomingClassesForParent, getInvoicesForParent, getParentStats]);
+  }, [user, getChildrenByParent, getFamiliesByParent, getUpcomingClassesForParent, getInvoicesForParent, getParentStats]);
 
   // Handler functions for modals
   const handleEditChild = (child: any) => {
@@ -82,32 +93,36 @@ export default function ParentDashboard() {
   // Calculate statistics
   const statsCards = stats ? [
     { 
+      name: 'My Families', // ✅ NEW
+      value: families.length.toString(), 
+      icon: Home, 
+      color: 'bg-purple-500',
+      change: `${families.length} family groups`,
+      onClick: () => navigate('/parent/families')
+    },
+    { 
       name: 'Total Children', 
       value: stats.totalChildren.toString(), 
       icon: Users, 
       color: 'bg-blue-500',
-      change: `${stats.totalChildren} active`
+      change: `${stats.totalChildren} active`,
+      onClick: () => setActiveTab('children')
     },
     { 
       name: 'Average Progress', 
       value: `${stats.averageProgress}%`, 
       icon: TrendingUp, 
       color: 'bg-green-500',
-      change: '+12% this month'
+      change: '+12% this month',
+      onClick: () => setActiveTab('children')
     },
     { 
       name: 'Classes This Month', 
       value: stats.classesThisMonth.toString(), 
       icon: Calendar, 
-      color: 'bg-purple-500',
-      change: `${stats.upcomingClasses} upcoming`
-    },
-    { 
-      name: 'Monthly Fee', 
-      value: `$${stats.monthlyFee}`, 
-      icon: DollarSign, 
-      color: 'bg-emerald-500',
-      change: 'Auto-billing enabled'
+      color: 'bg-orange-500',
+      change: `${stats.upcomingClasses} upcoming`,
+      onClick: () => setActiveTab('classes')
     },
   ] : [];
 
@@ -217,7 +232,11 @@ export default function ParentDashboard() {
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {statsCards.map((item) => (
-              <div key={item.name} className="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-100 hover:shadow-xl transition-all">
+              <div 
+                key={item.name} 
+                onClick={item.onClick}
+                className="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-100 hover:shadow-xl transition-all cursor-pointer"
+              >
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className={`${item.color} p-3 rounded-xl`}>
@@ -238,6 +257,47 @@ export default function ParentDashboard() {
             ))}
           </div>
         )}
+
+        {/* ✅ NEW: Quick Actions */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-blue-600" />
+            Quick Actions
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <button
+              onClick={() => navigate('/parent/families')}
+              className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Home className="h-5 w-5" />
+              <span className="font-medium">Manage Families</span>
+            </button>
+            
+            <button
+              onClick={() => setShowAddChildModal(true)}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2 shadow-lg"
+            >
+              <UserPlus className="h-5 w-5" />
+              <span className="font-medium">Add Child</span>
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('classes')}
+              className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 rounded-lg hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Calendar className="h-5 w-5" />
+              <span className="font-medium">View Classes</span>
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('payments')}
+              className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-4 rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all flex items-center justify-center gap-2 shadow-lg"
+            >
+              <DollarSign className="h-5 w-5" />
+              <span className="font-medium">View Payments</span>
+            </button>
+          </div>
+        </div>
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
@@ -292,6 +352,31 @@ export default function ParentDashboard() {
 
             {/* Quick Stats */}
             <div className="space-y-6">
+              {/* ✅ NEW: Families Summary */}
+              <div className="bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg rounded-xl p-6 text-white">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-white bg-opacity-20 p-3 rounded-xl">
+                    <Home className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-lg font-semibold">My Families</h3>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-3xl font-bold">{families.length}</p>
+                  <p className="text-purple-100">
+                    {families.length === 0 
+                      ? 'No families created yet' 
+                      : `Managing ${families.length} family group${families.length !== 1 ? 's' : ''}`
+                    }
+                  </p>
+                  <button 
+                    onClick={() => navigate('/parent/families')}
+                    className="w-full bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-50 transition-colors font-medium mt-4"
+                  >
+                    Manage Families
+                  </button>
+                </div>
+              </div>
+
               {/* Next Payment */}
               <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg rounded-xl p-6 text-white">
                 <div className="flex items-center gap-3 mb-4">
@@ -319,6 +404,14 @@ export default function ParentDashboard() {
                   <h3 className="font-semibold text-gray-900">Recent Activity</h3>
                 </div>
                 <div className="p-6 space-y-4">
+                  {families.length > 0 && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                      <span className="text-sm text-gray-600">
+                        {families.length} family group{families.length !== 1 ? 's' : ''} created
+                      </span>
+                    </div>
+                  )}
                   {upcomingClasses.length > 0 ? (
                     <>
                       <div className="flex items-center gap-3">
@@ -342,7 +435,7 @@ export default function ParentDashboard() {
                   )}
                   {invoices.length > 0 && (
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
                       <span className="text-sm text-gray-600">
                         {invoices.filter(inv => inv.status === 'paid').length} invoices paid
                       </span>

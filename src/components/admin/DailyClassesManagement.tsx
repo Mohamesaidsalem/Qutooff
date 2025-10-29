@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Clock, Users, Calendar, CheckCircle, XCircle, AlertCircle, Coffee, UserX, Pause,
-  RotateCcw, Eye, Edit, Download, RefreshCw, BookOpen, TimerIcon, Grid3x3, Table, 
-  History, Plus, Trash2, Video, FileText, Star, Award, TrendingUp, Filter
+  RotateCcw, Eye, Edit, Download, RefreshCw, BookOpen, Grid3x3, Table, 
+  History, Trash2, Video, FileText, Star, TrendingUp, UserCog
 } from 'lucide-react';
-import { ref, onValue, off, update, push, set } from 'firebase/database';
+import { ref, onValue, off, update } from 'firebase/database';
 import { database } from '../../firebase/config';
-import { convertFromUTC, getUserTimezone, getTimezoneDisplayName, convertToUTC } from '../../utils/timezone';
+import { convertFromUTC, getUserTimezone, getTimezoneDisplayName } from '../../utils/timezone';
 
 interface DailyClass {
   id: string;
@@ -16,10 +16,13 @@ interface DailyClass {
   courseName?: string;
   appointmentTime: string;
   appointmentDate: string;
+  
+  adminTime?: string;
   teacherTime?: string;
   studentTime?: string;
   onlineTime?: string;
   completedAt?: string;
+  
   status: 'scheduled' | 'taken' | 'absent' | 'leave' | 'declined' | 'suspended' | 'trial' | 'advance' | 'rescheduled' | 'running' | 'refused';
   history: string[];
   createdAt: string;
@@ -29,6 +32,17 @@ interface DailyClass {
   zoomLink?: string;
   rating?: number;
   feedback?: string;
+  
+  originalTeacherId?: string;
+  shiftHistory?: Array<{
+    from: string;
+    to: string;
+    fromName: string;
+    toName: string;
+    reason: string;
+    shiftedAt: string;
+    shiftedBy: string;
+  }>;
 }
 
 interface Course {
@@ -64,19 +78,16 @@ export default function DailyClassesManagement({ teachers, children, classes, on
   const [userTimezone] = useState(getUserTimezone());
   const [showStudentDetails, setShowStudentDetails] = useState<string | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
-  const [showAddClassModal, setShowAddClassModal] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  const [formData, setFormData] = useState({
-    studentId: '',
-    teacherId: '',
-    courseId: '',
-    date: '',
-    time: '',
-    duration: '60',
-    zoomLink: '',
-    notes: ''
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
+  
+  const [showShiftModal, setShowShiftModal] = useState(false);
+  const [selectedClassForShift, setSelectedClassForShift] = useState<DailyClass | null>(null);
+  const [shiftData, setShiftData] = useState({
+    newTeacherId: '',
+    reason: ''
   });
 
+  // ✅ Real-time Courses Listener
   useEffect(() => {
     const coursesRef = ref(database, 'courses');
     const unsubscribe = onValue(coursesRef, (snapshot) => {
@@ -94,6 +105,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     return () => off(coursesRef, 'value', unsubscribe);
   }, []);
 
+  // ✅ Real-time Daily Classes Listener (Auto-sync with Teacher Schedule)
   useEffect(() => {
     const classesRef = ref(database, 'daily_classes');
     const unsubscribe = onValue(classesRef, (snapshot) => {
@@ -173,40 +185,6 @@ export default function DailyClassesManagement({ teachers, children, classes, on
 
   const stats = calculateStats();
 
-  const handleAddClass = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const { utcDate, utcTime } = convertToUTC(formData.date, formData.time, userTimezone);
-      const course = courses.find(c => c.id === formData.courseId);
-      
-      const classData = {
-        studentId: formData.studentId,
-        teacherId: formData.teacherId,
-        courseId: formData.courseId || null,
-        courseName: course?.title || null,
-        appointmentDate: utcDate,
-        appointmentTime: utcTime,
-        duration: Number(formData.duration),
-        status: 'scheduled' as const,
-        zoomLink: formData.zoomLink,
-        notes: formData.notes,
-        history: [`Class created at ${new Date().toLocaleString()}`],
-        createdAt: new Date().toISOString()
-      };
-
-      const classesRef = ref(database, 'daily_classes');
-      const newClassRef = push(classesRef);
-      await set(newClassRef, classData);
-
-      alert('Class added successfully!');
-      setShowAddClassModal(false);
-      resetForm();
-    } catch (error) {
-      console.error('Error adding class:', error);
-      alert('Error adding class. Please try again.');
-    }
-  };
-
   const handleUpdateStatus = async (classId: string, newStatus: string) => {
     const classItem = dailyClasses.find(cls => cls.id === classId);
     if (!classItem) return;
@@ -228,10 +206,10 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     try {
       const classRef = ref(database, `daily_classes/${classId}`);
       await update(classRef, updates);
-      alert(`Class status updated to ${newStatus}`);
+      alert(`✅ Class status updated to ${newStatus}`);
     } catch (error) {
       console.error('Error updating class status:', error);
-      alert('Error updating class status');
+      alert('❌ Error updating class status');
     }
   };
 
@@ -240,32 +218,69 @@ export default function DailyClassesManagement({ teachers, children, classes, on
       try {
         const classRef = ref(database, `daily_classes/${classId}`);
         await update(classRef, { isActive: false });
-        alert('Class deleted successfully!');
+        alert('✅ Class deleted successfully!');
       } catch (error) {
         console.error('Error deleting class:', error);
-        alert('Error deleting class');
+        alert('❌ Error deleting class');
       }
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      studentId: '',
-      teacherId: '',
-      courseId: '',
-      date: '',
-      time: '',
-      duration: '60',
-      zoomLink: '',
-      notes: ''
-    });
+  const handleOpenShiftModal = (classItem: DailyClass) => {
+    setSelectedClassForShift(classItem);
+    setShiftData({ newTeacherId: '', reason: '' });
+    setShowShiftModal(true);
+  };
+
+  const handleConfirmShift = async () => {
+    if (!selectedClassForShift || !shiftData.newTeacherId || !shiftData.reason) {
+      alert('Please select a teacher and provide a reason');
+      return;
+    }
+
+    try {
+      const oldTeacher = teachers.find(t => t.id === selectedClassForShift.teacherId);
+      const newTeacher = teachers.find(t => t.id === shiftData.newTeacherId);
+
+      const shiftRecord = {
+        from: selectedClassForShift.teacherId,
+        to: shiftData.newTeacherId,
+        fromName: oldTeacher?.name || 'Unknown',
+        toName: newTeacher?.name || 'Unknown',
+        reason: shiftData.reason,
+        shiftedAt: new Date().toISOString(),
+        shiftedBy: 'Admin'
+      };
+
+      const updates = {
+        originalTeacherId: selectedClassForShift.originalTeacherId || selectedClassForShift.teacherId,
+        teacherId: shiftData.newTeacherId,
+        shiftHistory: [...(selectedClassForShift.shiftHistory || []), shiftRecord],
+        history: [
+          ...(selectedClassForShift.history || []),
+          `Teacher changed from ${shiftRecord.fromName} to ${shiftRecord.toName} - Reason: ${shiftData.reason}`
+        ],
+        updatedAt: new Date().toISOString()
+      };
+
+      const classRef = ref(database, `daily_classes/${selectedClassForShift.id}`);
+      await update(classRef, updates);
+
+      alert('✅ Teacher shifted successfully!');
+      setShowShiftModal(false);
+      setSelectedClassForShift(null);
+      setShiftData({ newTeacherId: '', reason: '' });
+    } catch (error) {
+      console.error('Error shifting teacher:', error);
+      alert('❌ Error shifting teacher. Please try again.');
+    }
   };
 
   const getStatusIcon = (status: string) => {
     const iconProps = { className: "h-4 w-4" };
     switch (status) {
       case 'taken': return <CheckCircle {...iconProps} className="h-4 w-4 text-green-600" />;
-      case 'running': return <TimerIcon {...iconProps} className="h-4 w-4 text-blue-600" />;
+      case 'running': return <Clock {...iconProps} className="h-4 w-4 text-blue-600" />;
       case 'scheduled': return <Clock {...iconProps} className="h-4 w-4 text-yellow-600" />;
       case 'absent': return <UserX {...iconProps} className="h-4 w-4 text-red-600" />;
       case 'leave': return <Coffee {...iconProps} className="h-4 w-4 text-orange-600" />;
@@ -296,6 +311,42 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     }
   };
 
+  const formatTimeWithTimezone = (isoString?: string, timezone?: string) => {
+    if (!isoString) return 'N/A';
+    try {
+      const date = new Date(isoString);
+      const utcDate = date.toISOString().split('T')[0];
+      const utcTime = date.toISOString().split('T')[1].substring(0, 5);
+      
+      if (timezone) {
+        const { localTime } = convertFromUTC(utcDate, utcTime, timezone);
+        return localTime;
+      }
+      
+      return date.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return 'Invalid';
+    }
+  };
+
+  const formatTime = (isoString?: string) => {
+    if (!isoString) return 'N/A';
+    try {
+      return new Date(isoString).toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return 'Invalid';
+    }
+  };
+
   const filteredClasses = getFilteredClasses();
 
   if (loading) {
@@ -312,20 +363,13 @@ export default function DailyClassesManagement({ teachers, children, classes, on
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Daily Classes Management</h2>
-          <p className="mt-2 text-sm text-gray-600">Manage all daily classes with course integration</p>
+          <p className="mt-2 text-sm text-gray-600">View and manage all daily classes (Add new classes from Teacher Schedule)</p>
           <div className="mt-1 flex items-center text-xs text-blue-600">
             <Clock className="h-3 w-3 mr-1" />
             <span>Your timezone: {getTimezoneDisplayName(userTimezone)}</span>
           </div>
         </div>
         <div className="flex gap-3">
-          <button 
-            onClick={() => setShowAddClassModal(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center shadow-sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Class
-          </button>
           <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center shadow-sm">
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -341,18 +385,20 @@ export default function DailyClassesManagement({ teachers, children, classes, on
             <p className="text-xs opacity-90">Total</p>
             <p className="text-2xl font-bold">{stats.total}</p>
           </div>
+          
           <div className="bg-gradient-to-br from-green-500 to-green-600 p-3 rounded-lg shadow text-white">
             <CheckCircle className="h-6 w-6 mb-1" />
-            <p className="text-xs opacity-90">Completed</p>
+            <p className="text-xs opacity-90">Taken</p>
             <p className="text-2xl font-bold">{stats.taken}</p>
           </div>
+          
           <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 p-3 rounded-lg shadow text-white">
             <Clock className="h-6 w-6 mb-1" />
             <p className="text-xs opacity-90">Scheduled</p>
             <p className="text-2xl font-bold">{stats.remaining}</p>
           </div>
           <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-3 rounded-lg shadow text-white">
-            <TimerIcon className="h-6 w-6 mb-1" />
+            <Clock className="h-6 w-6 mb-1" />
             <p className="text-xs opacity-90">Running</p>
             <p className="text-2xl font-bold">{stats.running}</p>
           </div>
@@ -434,7 +480,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       </div>
 
-      {/* Classes Display - Grid View */}
+      {/* Grid View */}
       {viewMode === 'grid' && filteredClasses.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredClasses.map((classItem) => {
@@ -454,6 +500,41 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
                     #{classItem.id.slice(-6)}
                   </span>
+                </div>
+
+                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="h-4 w-4 text-blue-600" />
+                    <span className="text-xs font-bold text-blue-900">CLASS TIMES</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Admin Time:</span>
+                      <span className="font-semibold text-gray-900">{formatTime(classItem.adminTime)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">T-Time ({teacher?.timezone || 'UTC'}):</span>
+                      <span className="font-semibold text-gray-900">
+                        {formatTimeWithTimezone(classItem.teacherTime, teacher?.timezone)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">S-Time ({student?.timezone || 'UTC'}):</span>
+                      <span className="font-semibold text-gray-900">
+                        {formatTimeWithTimezone(classItem.studentTime, student?.timezone)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Online ({teacher?.timezone || 'UTC'}):</span>
+                      <span className="font-semibold text-green-600">
+                        {formatTimeWithTimezone(classItem.onlineTime, teacher?.timezone)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1 mt-1">
+                      <span className="text-gray-600 font-bold">Appointment:</span>
+                      <span className="font-bold text-blue-600">{classItem.appointmentTime}</span>
+                    </div>
+                  </div>
                 </div>
 
                 {course && (
@@ -491,6 +572,18 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   <p className="text-xs text-gray-500 mb-1 font-semibold">TEACHER</p>
                   <p className="text-sm font-bold text-gray-900">{teacher?.name || 'Unknown'}</p>
                   <p className="text-xs text-gray-600">{teacher?.subject || teacher?.specialization || 'No subject'}</p>
+                  
+                  {classItem.shiftHistory && classItem.shiftHistory.length > 0 && (
+                    <div className="mt-2 p-2 bg-orange-100 rounded border border-orange-300">
+                      <p className="text-xs text-orange-700 font-semibold flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        Teacher Shifted
+                      </p>
+                      <p className="text-xs text-orange-600">
+                        From: {classItem.shiftHistory[classItem.shiftHistory.length - 1].fromName}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t">
@@ -500,7 +593,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         onClick={() => handleUpdateStatus(classItem.id, 'running')}
                         className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                       >
-                        <TimerIcon className="h-3 w-3" />
+                        <Clock className="h-3 w-3" />
                         Start
                       </button>
                       <button 
@@ -521,6 +614,15 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                       Complete
                     </button>
                   )}
+                  
+                  <button 
+                    onClick={() => handleOpenShiftModal(classItem)}
+                    className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                  >
+                    <UserCog className="h-3 w-3" />
+                    Shift
+                  </button>
+                  
                   <button 
                     onClick={() => setShowStudentDetails(classItem.studentId)}
                     className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
@@ -540,7 +642,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                       href={classItem.zoomLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="col-span-2 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                      className="col-span-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                     >
                       <Video className="h-3 w-3" />
                       Join Zoom
@@ -553,6 +655,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                     <Trash2 className="h-3 w-3" />
                     Delete
                   </button>
+                  
                   <div className="relative group">
                     <button className="w-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1">
                       <Edit className="h-3 w-3" />
@@ -620,13 +723,18 @@ export default function DailyClassesManagement({ teachers, children, classes, on
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">A-Time</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Course</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">T-Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">S-Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Online</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Student</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Course</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">History</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Teacher</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Shift</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -639,96 +747,194 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                     <tr key={classItem.id} className="hover:bg-blue-50 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs font-mono font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                          #{classItem.id.slice(-6)}
+                          {classItem.id.slice(-7)}
                         </span>
                       </td>
+                      
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-semibold text-gray-900">{classItem.appointmentDate}</span>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-purple-600" />
+                          <span className="text-xs font-semibold text-gray-900">{formatTime(classItem.adminTime)}</span>
                         </div>
                       </td>
+                      
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-semibold text-gray-900">{classItem.appointmentTime}</span>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-blue-600" />
+                          <span className="text-xs font-bold text-gray-900">{classItem.appointmentDate}</span>
                         </div>
+                        <div className="text-xs text-gray-600">{classItem.appointmentTime}</div>
                       </td>
+                      
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-indigo-600" />
+                          <span className="text-xs font-semibold text-gray-900">
+                            {formatTimeWithTimezone(classItem.teacherTime, teacher?.timezone)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">{teacher?.timezone || 'UTC'}</div>
+                      </td>
+                      
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-cyan-600" />
+                          <span className="text-xs font-semibold text-gray-900">
+                            {formatTimeWithTimezone(classItem.studentTime, student?.timezone)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">{student?.timezone || 'UTC'}</div>
+                      </td>
+                      
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-green-600" />
+                          <span className="text-xs font-bold text-green-600">
+                            {formatTimeWithTimezone(classItem.onlineTime, teacher?.timezone)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">{teacher?.timezone || 'UTC'}</div>
+                      </td>
+                      
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-semibold text-gray-900">{student?.name || 'Unknown'}</div>
+                        <div className="text-xs text-gray-500">{student?.level || 'No level'}</div>
+                      </td>
+                      
                       <td className="px-4 py-3">
                         {course ? (
                           <div>
-                            <div className="text-sm font-bold text-purple-900">{course.title}</div>
+                            <div className="text-sm font-semibold text-purple-900">{course.title}</div>
                             <div className="text-xs text-purple-600">{course.level}</div>
                           </div>
                         ) : (
                           <span className="text-xs text-gray-400">No course</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div>
-                            <div className="text-sm font-semibold text-gray-900">{student?.name || 'Unknown'}</div>
-                            <div className="text-xs text-gray-500">{student?.level || 'No level'}</div>
-                          </div>
-                          <button 
-                            onClick={() => setShowStudentDetails(classItem.studentId)}
-                            className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded transition-colors"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                        </div>
+                      
+                      <td className="px-4 py-3 text-center">
+                        <button 
+                          onClick={() => setShowHistoryModal(classItem.id)}
+                          className="p-2 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors inline-flex"
+                          title="View History"
+                        >
+                          <History className="h-4 w-4 text-purple-600" />
+                        </button>
                       </td>
+                      
                       <td className="px-4 py-3">
                         <div className="text-sm font-semibold text-gray-900">{teacher?.name || 'Unknown'}</div>
                         <div className="text-xs text-gray-500">{teacher?.subject || teacher?.specialization || 'No subject'}</div>
+                        {classItem.shiftHistory && classItem.shiftHistory.length > 0 && (
+                          <div className="text-xs text-orange-600 font-semibold mt-1 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            Shifted
+                          </div>
+                        )}
                       </td>
+                      
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(classItem.status)}
-                          <span className={`px-3 py-1 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
+                          <span className={`px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
                             {classItem.status}
                           </span>
                         </div>
                       </td>
+                      
+                      <td className="px-4 py-3 text-center">
+                        <button 
+                          onClick={() => handleOpenShiftModal(classItem)}
+                          className="p-2 hover:bg-orange-50 rounded-lg border border-orange-300 transition-colors inline-flex items-center justify-center bg-orange-50"
+                          title="Shift Teacher"
+                        >
+                          <UserCog className="h-4 w-4 text-orange-600" />
+                        </button>
+                      </td>
+                      
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           {classItem.status === 'scheduled' && (
                             <>
                               <button 
                                 onClick={() => handleUpdateStatus(classItem.id, 'running')}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                                title="Start Class"
                               >
                                 Start
                               </button>
                               <button 
                                 onClick={() => handleUpdateStatus(classItem.id, 'absent')}
-                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                                className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                                title="Mark Absent"
                               >
                                 Absent
                               </button>
                             </>
                           )}
+                          
                           {classItem.status === 'running' && (
                             <button 
                               onClick={() => handleUpdateStatus(classItem.id, 'taken')}
-                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                              title="Mark as Taken/Complete"
                             >
                               Complete
                             </button>
                           )}
+                          
+                          {classItem.status === 'taken' && (
+                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">
+                              ✓ Completed
+                            </span>
+                          )}
+                          
+                          {classItem.status === 'absent' && (
+                            <button 
+                              onClick={() => handleUpdateStatus(classItem.id, 'rescheduled')}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                              title="Reschedule"
+                            >
+                              Reschedule
+                            </button>
+                          )}
+                          
+                          {(classItem.status === 'leave' || classItem.status === 'declined' || classItem.status === 'suspended') && (
+                            <button 
+                              onClick={() => handleUpdateStatus(classItem.id, 'scheduled')}
+                              className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
+                              title="Restore to Scheduled"
+                            >
+                              Restore
+                            </button>
+                          )}
+                          
                           <button 
-                            onClick={() => setShowHistoryModal(classItem.id)}
-                            className="p-2 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors"
-                            title="View History"
+                            onClick={() => setShowStudentDetails(classItem.studentId)}
+                            className="p-1 hover:bg-indigo-50 rounded border border-indigo-200 transition-colors"
+                            title="View Student Details"
                           >
-                            <History className="h-4 w-4 text-purple-600" />
+                            <Eye className="h-4 w-4 text-indigo-600" />
                           </button>
+                          
                           <div className="relative group">
-                            <button className="p-2 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
+                            <button className="p-1 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
                               <Edit className="h-4 w-4 text-gray-600" />
                             </button>
                             <div className="absolute right-0 top-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-2xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 min-w-[160px]">
                               <div className="px-3 py-2 text-xs font-bold text-gray-500 border-b mb-1">CHANGE STATUS</div>
+                              <button onClick={() => handleUpdateStatus(classItem.id, 'scheduled')} className="w-full text-left px-4 py-2 text-xs hover:bg-blue-50 text-blue-600 font-semibold flex items-center gap-2">
+                                <Clock className="h-3 w-3" /> Schedule
+                              </button>
+                              <button onClick={() => handleUpdateStatus(classItem.id, 'running')} className="w-full text-left px-4 py-2 text-xs hover:bg-cyan-50 text-cyan-600 font-semibold flex items-center gap-2">
+                                <Clock className="h-3 w-3" /> Start Running
+                              </button>
+                              <button onClick={() => handleUpdateStatus(classItem.id, 'taken')} className="w-full text-left px-4 py-2 text-xs hover:bg-green-50 text-green-600 font-semibold flex items-center gap-2">
+                                <CheckCircle className="h-3 w-3" /> Mark Taken
+                              </button>
+                              <button onClick={() => handleUpdateStatus(classItem.id, 'absent')} className="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 font-semibold flex items-center gap-2">
+                                <UserX className="h-3 w-3" /> Mark Absent
+                              </button>
                               <button onClick={() => handleUpdateStatus(classItem.id, 'leave')} className="w-full text-left px-4 py-2 text-xs hover:bg-orange-50 text-orange-600 font-semibold flex items-center gap-2">
                                 <Coffee className="h-3 w-3" /> Mark Leave
                               </button>
@@ -751,6 +957,17 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                               <button onClick={() => handleUpdateStatus(classItem.id, 'advance')} className="w-full text-left px-4 py-2 text-xs hover:bg-teal-50 text-teal-600 font-semibold flex items-center gap-2">
                                 <RefreshCw className="h-3 w-3" /> Mark Advance
                               </button>
+                              <div className="border-t my-1"></div>
+                              {classItem.zoomLink && (
+                                <a 
+                                  href={classItem.zoomLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full text-left px-4 py-2 text-xs hover:bg-green-50 text-green-600 font-semibold flex items-center gap-2"
+                                >
+                                  <Video className="h-3 w-3" /> Join Zoom
+                                </a>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -773,73 +990,107 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       )}
 
-      {/* Add Class Modal */}
-      {showAddClassModal && (
+      {/* Shift Teacher Modal */}
+      {showShiftModal && selectedClassForShift && (
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6 pb-4 border-b">
-                <h2 className="text-2xl font-bold text-gray-900">Add New Class</h2>
-                <button onClick={() => { setShowAddClassModal(false); resetForm(); }} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-gradient-to-r from-orange-600 to-orange-700 rounded-xl shadow-lg">
+                    <UserCog className="h-6 w-6 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">Shift Teacher</h2>
+                </div>
+                <button onClick={() => setShowShiftModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
                   <XCircle className="h-6 w-6" />
                 </button>
               </div>
-              <form onSubmit={handleAddClass} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Student *</label>
-                    <select value={formData.studentId} onChange={(e) => setFormData({...formData, studentId: e.target.value})} className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                      <option value="">Select Student</option>
-                      {children.map((child: any) => (
-                        <option key={child.id} value={child.id}>{child.name} - {child.level}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Teacher *</label>
-                    <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                      <option value="">Select Teacher</option>
-                      {teachers.map((teacher: any) => (
-                        <option key={teacher.id} value={teacher.id}>{teacher.name} - {teacher.subject || teacher.specialization}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Course (Optional)</label>
-                    <select value={formData.courseId} onChange={(e) => setFormData({...formData, courseId: e.target.value})} className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">No Course</option>
-                      {courses.map((course) => (
-                        <option key={course.id} value={course.id}>{course.title} - {course.level}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Date *</label>
-                    <input type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Time *</label>
-                    <input type="time" value={formData.time} onChange={(e) => setFormData({...formData, time: e.target.value})} className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Duration (min) *</label>
-                    <input type="number" value={formData.duration} onChange={(e) => setFormData({...formData, duration: e.target.value})} className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" min="15" step="15" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Zoom Link</label>
-                    <input type="url" value={formData.zoomLink} onChange={(e) => setFormData({...formData, zoomLink: e.target.value})} className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://zoom.us/j/..." />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Notes</label>
-                    <textarea value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})} className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" rows={3} placeholder="Add any notes..." />
+
+              <div className="mb-6 p-4 bg-yellow-50 rounded-xl border-2 border-yellow-200">
+                <p className="text-sm font-bold text-yellow-900 mb-2">Current Class Information:</p>
+                <div className="space-y-1 text-sm text-yellow-800">
+                  <p><strong>Date:</strong> {selectedClassForShift.appointmentDate}</p>
+                  <p><strong>Time:</strong> {selectedClassForShift.appointmentTime}</p>
+                  <p><strong>Current Teacher:</strong> {teachers.find(t => t.id === selectedClassForShift.teacherId)?.name}</p>
+                  <p><strong>Student:</strong> {children.find(c => c.id === selectedClassForShift.studentId)?.name}</p>
+                </div>
+              </div>
+
+              {selectedClassForShift.shiftHistory && selectedClassForShift.shiftHistory.length > 0 && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    Shift History:
+                  </p>
+                  <div className="space-y-2">
+                    {selectedClassForShift.shiftHistory.map((shift, idx) => (
+                      <div key={idx} className="text-xs bg-white p-3 rounded-lg border">
+                        <p className="font-semibold text-gray-900">
+                          {shift.fromName} → {shift.toName}
+                        </p>
+                        <p className="text-gray-600">Reason: {shift.reason}</p>
+                        <p className="text-gray-500">
+                          {new Date(shift.shiftedAt).toLocaleString()} by {shift.shiftedBy}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
+
+              <form className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    New Teacher *
+                  </label>
+                  <select
+                    value={shiftData.newTeacherId}
+                    onChange={(e) => setShiftData({...shiftData, newTeacherId: e.target.value})}
+                    className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select a teacher...</option>
+                    {teachers
+                      .filter(t => t.id !== selectedClassForShift.teacherId)
+                      .map(teacher => (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.name} - {teacher.email}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Reason for Shift *
+                  </label>
+                  <textarea
+                    value={shiftData.reason}
+                    onChange={(e) => setShiftData({...shiftData, reason: e.target.value})}
+                    className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    rows={4}
+                    placeholder="Please provide a reason (e.g., teacher sick, emergency, unavailable, etc.)"
+                    required
+                  />
+                </div>
+
                 <div className="flex gap-3 pt-4 border-t">
-                  <button type="button" onClick={() => { setShowAddClassModal(false); resetForm(); }} className="flex-1 bg-gray-200 text-gray-800 py-3 px-4 rounded-xl hover:bg-gray-300 transition-colors font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setShowShiftModal(false)}
+                    className="flex-1 bg-gray-200 text-gray-800 py-3 px-4 rounded-xl hover:bg-gray-300 transition-colors font-bold"
+                  >
                     Cancel
                   </button>
-                  <button type="submit" className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-4 rounded-xl hover:from-green-700 hover:to-green-800 transition-all font-bold shadow-lg">
-                    Add Class
+                  <button
+                    type="button"
+                    onClick={handleConfirmShift}
+                    className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 px-4 rounded-xl hover:from-orange-700 hover:to-orange-800 transition-all font-bold shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <UserCog className="h-5 w-5" />
+                    Confirm Shift
                   </button>
                 </div>
               </form>

@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Users, BookOpen, Calendar as CalendarIcon, Award, Clock, Plus, Trash2, Globe, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { convertToUTC, convertFromUTC, getUserTimezone, getTimezoneDisplayName, getCurrentLocalDateTime } from '../../utils/timezone';
+// 🔥 Firebase imports
+import { database } from '../../firebase/config';
+import { ref, push, set } from 'firebase/database';
+// 🔥 Import useData hook to get courses
+import { useData } from '../../contexts/DataContext';
 
 interface TeacherScheduleManagementProps {
   teachers: any[];
@@ -19,12 +24,18 @@ export default function TeacherScheduleManagement({
   onUpdateClass,
   onDeleteClass
 }: TeacherScheduleManagementProps) {
+  
+  // 🔥 Get courses from DataContext
+  const { courses } = useData();
+  
   console.log('🔍 [TeacherScheduleManagement] Received props:', {
     teachersCount: teachers.length,
     teachers: teachers,
     childrenCount: children.length,
-    classesCount: classes.length
+    classesCount: classes.length,
+    coursesCount: courses.length // 🔥 Use courses from context
   });
+  
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showCalendarView, setShowCalendarView] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -33,9 +44,11 @@ export default function TeacherScheduleManagement({
   const [deletingClass, setDeletingClass] = useState<any>(null);
   const [userTimezone] = useState(getUserTimezone());
   const [currentDate, setCurrentDate] = useState(new Date());
+  
   const [scheduleData, setScheduleData] = useState({
     teacherId: '',
     studentId: '',
+    courseId: '', // 🔥 Add courseId
     date: '',
     time: '',
     duration: 60,
@@ -46,6 +59,7 @@ export default function TeacherScheduleManagement({
   const [editData, setEditData] = useState({
     teacherId: '',
     studentId: '',
+    courseId: '', // 🔥 Add courseId
     date: '',
     time: '',
     duration: 60,
@@ -176,6 +190,7 @@ export default function TeacherScheduleManagement({
     setEditData({
       teacherId: classItem.teacherId,
       studentId: classItem.studentId,
+      courseId: classItem.courseId || '', // 🔥 Add courseId
       date: localDate,
       time: localTime,
       duration: classItem.duration,
@@ -258,9 +273,15 @@ export default function TeacherScheduleManagement({
         return;
       }
 
+      // 🔥 Get course details
+      const course = courses.find(c => c.id === editData.courseId);
+
       onUpdateClass(editingClass.id, {
         studentId: editData.studentId,
         teacherId: editData.teacherId,
+        courseId: editData.courseId || null, // 🔥 Add courseId
+        courseName: course?.name || 'Regular Class', // 🔥 Add courseName
+        subject: course?.name || 'Quran Class', // 🔥 Update subject
         date: editData.date,
         time: editData.time,
         utcDate,
@@ -278,6 +299,7 @@ export default function TeacherScheduleManagement({
       setEditData({
         teacherId: '',
         studentId: '',
+        courseId: '', // 🔥 Reset courseId
         date: '',
         time: '',
         duration: 60,
@@ -399,7 +421,8 @@ export default function TeacherScheduleManagement({
     return days;
   };
 
-  const handleScheduleClass = (e: React.FormEvent) => {
+  // 🔥 Updated handleScheduleClass function with Firebase integration and course support
+  const handleScheduleClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (scheduleData.teacherId && scheduleData.studentId && scheduleData.date && scheduleData.time && scheduleData.duration) {
       const { utcDate, utcTime, utcDateTime } = convertToUTC(
@@ -430,9 +453,17 @@ export default function TeacherScheduleManagement({
         return;
       }
 
-      onScheduleClass({
+      // 🔥 Get teacher, student, and course details
+      const teacher = teachers.find(t => t.id === scheduleData.teacherId);
+      const student = children.find(c => c.id === scheduleData.studentId);
+      const course = courses.find(c => c.id === scheduleData.courseId);
+
+      // 🔥 Complete class data with course information
+      const completeClassData = {
+        // Original fields for classes
         studentId: scheduleData.studentId,
         teacherId: scheduleData.teacherId,
+        courseId: scheduleData.courseId || null, // 🔥 Add courseId
         date: scheduleData.date,
         time: scheduleData.time,
         utcDate,
@@ -440,23 +471,49 @@ export default function TeacherScheduleManagement({
         utcDateTime,
         duration: scheduleData.duration,
         status: 'scheduled',
+        subject: course?.name || 'Quran Class', // 🔥 Use course name if available
         zoomLink: scheduleData.zoomLink,
         notes: scheduleData.notes,
         timezone: userTimezone,
-        createdAt: new Date().toISOString()
-      });
-      
-      setScheduleData({
-        teacherId: '',
-        studentId: '',
-        date: '',
-        time: '',
-        duration: 60,
-        zoomLink: 'https://zoom.us/j/123456789',
-        notes: ''
-      });
-      setShowScheduleModal(false);
-      alert('Class scheduled successfully!');
+        createdAt: new Date().toISOString(),
+        
+        // 🔥 Additional fields for daily_classes
+        appointmentDate: scheduleData.date,
+        appointmentTime: scheduleData.time,
+        adminTime: new Date().toISOString(),
+        teacherTime: utcDateTime,
+        studentTime: utcDateTime,
+        courseName: course?.name || 'Regular Class', // 🔥 Use actual course name
+        history: [`Class scheduled at ${new Date().toLocaleString()}`]
+      };
+
+      try {
+        // 🔥 1. Add to classes (original system)
+        await onScheduleClass(completeClassData);
+        
+        // 🔥 2. Add to daily_classes (for Daily Classes Management)
+        const dailyClassesRef = ref(database, 'daily_classes');
+        const newDailyClassRef = push(dailyClassesRef);
+        await set(newDailyClassRef, completeClassData);
+        
+        console.log('✅ Class added to both collections successfully!');
+        alert('✅ Class scheduled successfully!');
+        
+        setScheduleData({
+          teacherId: '',
+          studentId: '',
+          courseId: '', // 🔥 Reset courseId
+          date: '',
+          time: '',
+          duration: 60,
+          zoomLink: 'https://zoom.us/j/123456789',
+          notes: ''
+        });
+        setShowScheduleModal(false);
+      } catch (error) {
+        console.error('❌ Error scheduling class:', error);
+        alert('❌ Error scheduling class. Please try again.');
+      }
     }
   };
 
@@ -839,6 +896,7 @@ export default function TeacherScheduleManagement({
                     setEditData({
                       teacherId: '',
                       studentId: '',
+                      courseId: '', // 🔥 Reset courseId
                       date: '',
                       time: '',
                       duration: 60,
@@ -910,6 +968,30 @@ export default function TeacherScheduleManagement({
                       <option key={child.id} value={child.id}>{child.name} - {child.level}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* 🔥 Add Course Selection Field in Edit Modal */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Course (Optional)
+                  </label>
+                  <select 
+                    value={editData.courseId}
+                    onChange={(e) => setEditData({ ...editData, courseId: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">No specific course (Regular Class)</option>
+                    {courses.map(course => (
+                      <option key={course.id} value={course.id}>
+                        {course.name} - {course.level || 'All Levels'}
+                      </option>
+                    ))}
+                  </select>
+                  {editData.courseId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Selected course will be linked to this class
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -999,6 +1081,7 @@ export default function TeacherScheduleManagement({
                       setEditData({
                         teacherId: '',
                         studentId: '',
+                        courseId: '', // 🔥 Reset courseId
                         date: '',
                         time: '',
                         duration: 60,
@@ -1072,6 +1155,14 @@ export default function TeacherScheduleManagement({
                       {children.find(c => c.id === deletingClass.studentId)?.name || 'Unknown'}
                     </span>
                   </div>
+                  {deletingClass.courseId && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Course:</span>
+                      <span className="font-medium">
+                        {courses.find(c => c.id === deletingClass.courseId)?.name || 'Unknown'}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Date & Time:</span>
                     <span className="font-medium">
@@ -1135,6 +1226,7 @@ export default function TeacherScheduleManagement({
                     setScheduleData({
                       teacherId: '',
                       studentId: '',
+                      courseId: '', // 🔥 Reset courseId
                       date: '',
                       time: '',
                       duration: 60,
@@ -1194,6 +1286,30 @@ export default function TeacherScheduleManagement({
                       <option key={child.id} value={child.id}>{child.name} - {child.level}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* 🔥 Add Course Selection Field */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Course (Optional)
+                  </label>
+                  <select 
+                    value={scheduleData.courseId}
+                    onChange={(e) => setScheduleData({ ...scheduleData, courseId: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">No specific course (Regular Class)</option>
+                    {courses.map(course => (
+                      <option key={course.id} value={course.id}>
+                        {course.name} - {course.level || 'All Levels'}
+                      </option>
+                    ))}
+                  </select>
+                  {scheduleData.courseId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Selected course will be linked to this class
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1282,6 +1398,7 @@ export default function TeacherScheduleManagement({
                       setScheduleData({
                         teacherId: '',
                         studentId: '',
+                        courseId: '', // 🔥 Reset courseId
                         date: '',
                         time: '',
                         duration: 60,

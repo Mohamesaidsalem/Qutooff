@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  signInWithEmailAndPassword, 
+import {
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
@@ -16,14 +16,17 @@ export interface User {
   name: string;
   timezone: string;
   createdAt: string;
+  studentId?: string; // For student users
+  parentId?: string; // For linking students to parents
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<boolean>; 
+  login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, role: string, name: string, timezone: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  loginAsStudent: (email: string, password: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,10 +47,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Check for Firebase Auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         try {
+          // First check users collection
           const userRef = ref(database, `users/${firebaseUser.uid}`);
           const snapshot = await get(userRef);
           
@@ -59,11 +64,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
               role: userData.role,
               name: userData.name,
               timezone: userData.timezone || 'UTC',
-              createdAt: userData.createdAt
+              createdAt: userData.createdAt,
+              studentId: userData.studentId,
+              parentId: userData.parentId
             });
           } else {
-            await signOut(auth);
-            setUser(null);
+            // If not in users, check if it's a student account
+            const childrenRef = ref(database, 'children');
+            const childrenSnapshot = await get(childrenRef);
+            
+            if (childrenSnapshot.exists()) {
+              const children = childrenSnapshot.val();
+              const studentEntry = Object.entries(children).find(
+                ([_, child]: [string, any]) => 
+                  child.studentAccount?.userId === firebaseUser.uid
+              );
+              
+              if (studentEntry) {
+                const [studentId, studentData]: [string, any] = studentEntry;
+                setUser({
+                  id: firebaseUser.uid,
+                  email: firebaseUser.email || '',
+                  role: 'student',
+                  name: studentData.name,
+                  timezone: studentData.timezone || 'UTC',
+                  createdAt: studentData.createdAt || new Date().toISOString(),
+                  studentId: studentId,
+                  parentId: studentData.parentId
+                });
+              } else {
+                await signOut(auth);
+                setUser(null);
+              }
+            } else {
+              await signOut(auth);
+              setUser(null);
+            }
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -78,135 +114,168 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return unsubscribe;
   }, []);
 
+  // Check for student session on mount
+  useEffect(() => {
+    if (!loading && !user && !auth.currentUser) {
+      const studentSession = localStorage.getItem('studentSession');
+      if (studentSession) {
+        try {
+          const userData = JSON.parse(studentSession);
+          console.log('🔄 Restoring student session:', userData.name);
+          setUser(userData);
+        } catch (error) {
+          console.error('Error restoring student session:', error);
+          localStorage.removeItem('studentSession');
+        }
+      }
+    }
+  }, [loading, user]);
+
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       const emailLower = email.toLowerCase().trim();
       console.log('🔐 Attempting login for:', emailLower);
       
-      // ✅ Method 1: Try Firebase Auth login first
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
-        console.log('✅ Firebase Auth login successful');
+      // Try Firebase Auth login first
+      const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
+      console.log('✅ Firebase Auth login successful');
+      
+      // Check if user exists in users collection
+      const userRef = ref(database, `users/${userCredential.user.uid}`);
+      const userSnapshot = await get(userRef);
+      
+      if (userSnapshot.exists()) {
+        // Regular user (parent, teacher, admin)
         return true;
-      } catch (authError: any) {
-        console.log('⚠️ Firebase Auth failed:', authError.code);
-        console.log('🔍 Checking student accounts in children collection...');
-        
-        // ✅ Method 2: Check children collection for student accounts
-        const childrenRef = ref(database, 'children');
-        const childrenSnapshot = await get(childrenRef);
-        
-        if (childrenSnapshot.exists()) {
-          const children = childrenSnapshot.val();
-          const childrenCount = Object.keys(children).length;
-          console.log('📚 Total children in database:', childrenCount);
-          
-          if (childrenCount === 0) {
-            console.log('❌ No children found in database!');
-            return false;
-          }
-          
-          // Search for student with matching email
-          let foundCount = 0;
-          for (const childId in children) {
-            foundCount++;
-            const childData = children[childId];
-            
-            // Skip inactive children
-            if (childData.isActive === false) {
-              continue;
-            }
-            
-            // Get emails and normalize them
-            const studentEmail = childData.studentAccount?.email?.toLowerCase().trim();
-            const childEmail = childData.email?.toLowerCase().trim();
-            
-            console.log(`🔍 Checking child [${childId}]:`, {
-              name: childData.name,
-              childEmail: childEmail,
-              studentEmail: studentEmail,
-              hasStudentAccount: !!childData.studentAccount,
-              hasPassword: !!childData.studentAccount?.password
-            });
-            
-            // ✅ Check if email matches
-            const emailMatch = studentEmail === emailLower || childEmail === emailLower;
-            
-            if (emailMatch) {
-              console.log(`✅ Email match found for: ${childData.name}`);
-              
-              // Check if student account exists
-              if (!childData.studentAccount) {
-                console.log('❌ Student account not created yet');
-                continue;
-              }
-              
-              // Check if password exists
-              if (!childData.studentAccount.password) {
-                console.log('❌ No password set for student account');
-                continue;
-              }
-              
-              // Verify password
-              if (childData.studentAccount.password === password) {
-                console.log('✅ Password verified!');
-                
-                // ✅ Get complete user data
-                const userRef = ref(database, `users/${childId}`);
-                const userSnapshot = await get(userRef);
-                
-                let userData: User = {
-                  id: childId,
-                  email: emailLower,
-                  role: 'student',
-                  name: childData.name,
-                  timezone: childData.timezone || 'UTC',
-                  createdAt: childData.createdAt || new Date().toISOString()
-                };
-
-                // Merge with users collection data if exists
-                if (userSnapshot.exists()) {
-                  const userDbData = userSnapshot.val();
-                  console.log('📝 User data from users collection:', userDbData);
-                  userData = {
-                    ...userData,
-                    name: userDbData.name || userData.name,
-                    timezone: userDbData.timezone || userData.timezone,
-                  };
-                }
-                
-                // ✅ Set user state
-                setUser(userData);
-                
-                // ✅ Store in localStorage for persistence
-                localStorage.setItem('studentSession', JSON.stringify(userData));
-                
-                console.log('✅ Student login successful!', userData);
-                return true;
-              } else {
-                console.log('❌ Invalid password');
-                console.log('Expected:', childData.studentAccount.password);
-                console.log('Provided:', password);
-                return false;
-              }
-            }
-          }
-          
-          console.log('❌ No matching student account found');
-        } else {
-          console.log('❌ No children data in database');
-        }
-        
-        console.log('❌ Login failed: Invalid credentials');
-        return false;
       }
+      
+      // Check if it's a student account
+      const childrenRef = ref(database, 'children');
+      const childrenSnapshot = await get(childrenRef);
+      
+      if (childrenSnapshot.exists()) {
+        const children = childrenSnapshot.val();
+        const studentEntry = Object.entries(children).find(
+          ([_, child]: [string, any]) => 
+            child.studentAccount?.userId === userCredential.user.uid
+        );
+        
+        if (studentEntry) {
+          const [studentId, studentData]: [string, any] = studentEntry;
+          
+          const userData: User = {
+            id: userCredential.user.uid,
+            email: emailLower,
+            role: 'student',
+            name: studentData.name,
+            timezone: studentData.timezone || 'UTC',
+            createdAt: studentData.createdAt || new Date().toISOString(),
+            studentId: studentId,
+            parentId: studentData.parentId
+          };
+          
+          setUser(userData);
+          localStorage.setItem('studentSession', JSON.stringify(userData));
+          console.log('✅ Student login successful!');
+          return true;
+        }
+      }
+      
+      // If we get here, the user exists in Auth but not in our database
+      await signOut(auth);
+      console.log('❌ User not found in database');
+      return false;
+      
     } catch (error: any) {
       console.error('❌ Login error:', error);
+      
+      // If Firebase Auth fails, try direct student login
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        return await loginAsStudent(email, password);
+      }
+      
       return false;
     }
   };
 
-  const register = async (email: string, password: string, role: string, name: string, timezone: string) => {
+  const loginAsStudent = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const emailLower = email.toLowerCase().trim();
+      console.log('🔍 Checking student accounts...');
+      
+      const childrenRef = ref(database, 'children');
+      const childrenSnapshot = await get(childrenRef);
+      
+      if (childrenSnapshot.exists()) {
+        const children = childrenSnapshot.val();
+        
+        // Search for student with matching credentials
+        for (const childId in children) {
+          const childData = children[childId];
+          
+          // Skip inactive children
+          if (childData.isActive === false) continue;
+          
+          const studentEmail = childData.studentAccount?.email?.toLowerCase().trim() || 
+                             childData.email?.toLowerCase().trim();
+          
+          if (studentEmail === emailLower) {
+            // Check password
+            if (childData.studentAccount?.password === password || 
+                childData.password === password) {
+              
+              console.log('✅ Student credentials verified!');
+              
+              // Create user session
+              const userData: User = {
+                id: childId,
+                email: emailLower,
+                role: 'student',
+                name: childData.name,
+                timezone: childData.timezone || 'UTC',
+                createdAt: childData.createdAt || new Date().toISOString(),
+                studentId: childId,
+                parentId: childData.parentId
+              };
+              
+              setUser(userData);
+              localStorage.setItem('studentSession', JSON.stringify(userData));
+              
+              // Try to create Firebase Auth account if doesn't exist
+              try {
+                await createUserWithEmailAndPassword(auth, emailLower, password);
+                console.log('✅ Firebase Auth account created for student');
+                
+                // Update student record with auth user ID
+                const updateRef = ref(database, `children/${childId}/studentAccount`);
+                await set(updateRef, {
+                  ...childData.studentAccount,
+                  userId: auth.currentUser?.uid
+                });
+              } catch (authError: any) {
+                if (authError.code === 'auth/email-already-in-use') {
+                  console.log('⚠️ Firebase Auth account already exists');
+                } else {
+                  console.log('⚠️ Could not create Firebase Auth account:', authError.message);
+                }
+              }
+              
+              return true;
+            }
+          }
+        }
+      }
+      
+      console.log('❌ No matching student account found');
+      return false;
+      
+    } catch (error) {
+      console.error('❌ Student login error:', error);
+      return false;
+    }
+  };
+
+  const register = async (email: string, password: string, role: string, name: string, timezone: string): Promise<boolean> => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
@@ -230,13 +299,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
-      // Check if user is logged in via Firebase Auth
+      // Clear student session
+      localStorage.removeItem('studentSession');
+      
+      // Sign out from Firebase Auth if logged in
       if (auth.currentUser) {
         await signOut(auth);
       }
-      
-      // Clear student session
-      localStorage.removeItem('studentSession');
       
       setUser(null);
       console.log('✅ Logged out successfully');
@@ -246,30 +315,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // ✅ Check for student session on mount
-  useEffect(() => {
-    // Only run after initial Firebase Auth check
-    if (!loading && !user && !auth.currentUser) {
-      const studentSession = localStorage.getItem('studentSession');
-      if (studentSession) {
-        try {
-          const userData = JSON.parse(studentSession);
-          console.log('🔄 Restoring student session:', userData.name);
-          setUser(userData);
-        } catch (error) {
-          console.error('Error restoring student session:', error);
-          localStorage.removeItem('studentSession');
-        }
-      }
-    }
-  }, [loading, user]);
-
   const value = {
     user,
     loading,
     login,
     register,
-    logout
+    logout,
+    loginAsStudent
   };
 
   return (

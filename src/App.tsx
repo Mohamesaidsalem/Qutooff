@@ -19,6 +19,9 @@ import AdminDashboard from './components/Dashboards/AdminDashboard';
 import SuperAdminDashboard from './components/Dashboards/SuperAdminDashboard';
 import AdminSectionManager from './components/Dashboards/AdminSectionManager';
 
+// ✅ NEW: Family Management
+import FamilyManagement from './components/FamilyManagement/FamilyManagement';
+
 // Public Pages
 import CoursesPage from './components/CoursesPage';
 import FreeTrial from './components/Pages/FreeTrial';
@@ -73,7 +76,7 @@ function AppContent() {
     );
   }
 
-  // ✅ FIX: Better Dashboard Router
+  // ✅ Better Dashboard Router
   const getDashboardComponent = () => {
     if (!user || !user.role) {
       console.log('❌ No user or role found');
@@ -111,6 +114,9 @@ function AppContent() {
 
   // ✅ Check if user is Admin or Super Admin
   const isAdminOrSuperAdmin = user && (user.role === 'admin' || user.role === 'super_admin');
+  
+  // ✅ Check if user is Parent
+  const isParent = user && user.role === 'parent';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -138,12 +144,26 @@ function AppContent() {
           element={user ? <ClassManagement /> : <Navigate to="/" replace />} 
         />
         
+        {/* ✅ NEW: Family Management Routes */}
+        
+        {/* Admin & Super Admin Family Management */}
+        <Route 
+          path="/admin/families" 
+          element={isAdminOrSuperAdmin ? <FamilyManagement /> : <Navigate to="/" replace />} 
+        />
+        
+        {/* Parent Family Management */}
+        <Route 
+          path="/parent/families" 
+          element={isParent ? <FamilyManagement /> : <Navigate to="/" replace />} 
+        />
+        
+        {/* Admin & Super Admin Only Routes */}
         <Route 
           path="/admin-sections" 
           element={isAdminOrSuperAdmin ? <AdminSectionManager /> : <Navigate to="/" replace />} 
         />
 
-        {/* Admin & Super Admin Only Routes */}
         <Route 
           path="/weekly-classes" 
           element={isAdminOrSuperAdmin ? <WeeklyClassesManager /> : <Navigate to="/" replace />} 
