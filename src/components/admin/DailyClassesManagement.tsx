@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Clock, Users, Calendar, CheckCircle, XCircle, AlertCircle, Coffee, UserX, Pause,
-  RotateCcw, Eye, Edit, Download, RefreshCw, BookOpen, Grid3x3, Table, 
-  History, Trash2, Video, FileText, Star, TrendingUp, UserCog
+  RotateCcw, Eye, Edit, Download, RefreshCw, BookOpen, Grid3x3, Table,
+  History, Trash2, Video, FileText, Star, TrendingUp, UserCog, X
 } from 'lucide-react';
 import { ref, onValue, off, update } from 'firebase/database';
 import { database } from '../../firebase/config';
@@ -16,13 +16,13 @@ interface DailyClass {
   courseName?: string;
   appointmentTime: string;
   appointmentDate: string;
-  
+
   adminTime?: string;
   teacherTime?: string;
   studentTime?: string;
   onlineTime?: string;
   completedAt?: string;
-  
+
   status: 'scheduled' | 'taken' | 'absent' | 'leave' | 'declined' | 'suspended' | 'trial' | 'advance' | 'rescheduled' | 'running' | 'refused';
   history: string[];
   createdAt: string;
@@ -32,7 +32,7 @@ interface DailyClass {
   zoomLink?: string;
   rating?: number;
   feedback?: string;
-  
+
   originalTeacherId?: string;
   shiftHistory?: Array<{
     from: string;
@@ -79,13 +79,20 @@ export default function DailyClassesManagement({ teachers, children, classes, on
   const [showStudentDetails, setShowStudentDetails] = useState<string | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
-  
+
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [selectedClassForShift, setSelectedClassForShift] = useState<DailyClass | null>(null);
   const [shiftData, setShiftData] = useState({
     newTeacherId: '',
     reason: ''
   });
+
+  // ✅ NEW: State للـ Card Details Modal
+  const [selectedCardFilter, setSelectedCardFilter] = useState<{
+    type: string;
+    title: string;
+    status?: string;
+  } | null>(null);
 
   // ✅ Real-time Courses Listener
   useEffect(() => {
@@ -127,7 +134,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
 
   const getFilteredClasses = () => {
     let filtered = dailyClasses;
-    
+
     if (filterDate === 'today') {
       const today = new Date().toISOString().split('T')[0];
       filtered = filtered.filter(cls => cls.appointmentDate === today);
@@ -140,20 +147,57 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         return classDate >= weekStart && classDate <= weekEnd;
       });
     }
-    
+
     if (filterStatus !== 'all') {
       filtered = filtered.filter(cls => cls.status === filterStatus);
     }
-    
+
     if (filterCourse !== 'all') {
       filtered = filtered.filter(cls => cls.courseId === filterCourse);
     }
-    
+
     return filtered.sort((a, b) => {
       const aTime = new Date(`${a.appointmentDate}T${a.appointmentTime}`);
       const bTime = new Date(`${b.appointmentDate}T${b.appointmentTime}`);
       return aTime.getTime() - bTime.getTime();
     });
+  };
+
+  // ✅ NEW: Get Classes by Card Filter
+  const getClassesByCardFilter = () => {
+    if (!selectedCardFilter) return [];
+    
+    const today = new Date().toISOString().split('T')[0];
+    let filtered = dailyClasses;
+
+    switch (selectedCardFilter.type) {
+      case 'total':
+        return filtered;
+      
+      case 'students':
+        return filtered;
+      
+      case 'created':
+        return filtered.filter(cls => {
+          if (!cls.createdAt) return false;
+          try {
+            return new Date(cls.createdAt).toISOString().split('T')[0] === today;
+          } catch {
+            return false;
+          }
+        });
+      
+      default:
+        if (selectedCardFilter.status) {
+          return filtered.filter(cls => cls.status === selectedCardFilter.status);
+        }
+        return filtered;
+    }
+  };
+
+  // ✅ NEW: Handle Card Click
+  const handleCardClick = (type: string, title: string, status?: string) => {
+    setSelectedCardFilter({ type, title, status });
   };
 
   const calculateStats = () => {
@@ -188,7 +232,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
   const handleUpdateStatus = async (classId: string, newStatus: string) => {
     const classItem = dailyClasses.find(cls => cls.id === classId);
     if (!classItem) return;
-    
+
     const currentTime = new Date().toISOString();
     const currentHistory = Array.isArray(classItem.history) ? classItem.history : [];
     const updates: Partial<DailyClass> = {
@@ -196,13 +240,13 @@ export default function DailyClassesManagement({ teachers, children, classes, on
       updatedAt: currentTime,
       history: [...currentHistory, `Status changed to ${newStatus} at ${new Date().toLocaleString()}`]
     };
-    
+
     if (newStatus === 'running') {
       updates.onlineTime = currentTime;
     } else if (newStatus === 'taken') {
       updates.completedAt = currentTime;
     }
-    
+
     try {
       const classRef = ref(database, `daily_classes/${classId}`);
       await update(classRef, updates);
@@ -317,7 +361,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
       const date = new Date(isoString);
       const utcDate = date.toISOString().split('T')[0];
       const utcTime = date.toISOString().split('T')[1].substring(0, 5);
-      
+
       if (timezone) {
         const { localTime } = convertFromUTC(utcDate, utcTime, timezone);
         return localTime;
@@ -337,8 +381,8 @@ export default function DailyClassesManagement({ teachers, children, classes, on
   const formatTime = (isoString?: string) => {
     if (!isoString) return 'N/A';
     try {
-      return new Date(isoString).toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return new Date(isoString).toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
         hour12: true
       });
@@ -377,59 +421,85 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       </div>
 
-      {/* Statistics - تصغير padding و gaps */}
+      {/* Statistics - ✅ الكروت الكبيرة CLICKABLE */}
       <div className="space-y-2">
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg shadow text-white">
+          <button
+            onClick={() => handleCardClick('total', 'All Classes')}
+            className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
+          >
             <BookOpen className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Total</p>
             <p className="text-xl font-bold">{stats.total}</p>
-          </div>
+          </button>
           
-          <div className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-lg shadow text-white">
+          <button
+            onClick={() => handleCardClick('taken', 'Completed Classes', 'taken')}
+            className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
+          >
             <CheckCircle className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Taken</p>
             <p className="text-xl font-bold">{stats.taken}</p>
-          </div>
+          </button>
           
-          <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 p-2 rounded-lg shadow text-white">
+          <button
+            onClick={() => handleCardClick('scheduled', 'Scheduled Classes', 'scheduled')}
+            className="bg-gradient-to-br from-yellow-500 to-yellow-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
+          >
             <Clock className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Scheduled</p>
             <p className="text-xl font-bold">{stats.remaining}</p>
-          </div>
-          <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-2 rounded-lg shadow text-white">
+          </button>
+
+          <button
+            onClick={() => handleCardClick('running', 'Running Classes', 'running')}
+            className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
+          >
             <Clock className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Running</p>
             <p className="text-xl font-bold">{stats.running}</p>
-          </div>
-          <div className="bg-gradient-to-br from-red-500 to-red-600 p-2 rounded-lg shadow text-white">
+          </button>
+
+          <button
+            onClick={() => handleCardClick('absent', 'Absent Classes', 'absent')}
+            className="bg-gradient-to-br from-red-500 to-red-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
+          >
             <UserX className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Absent</p>
             <p className="text-xl font-bold">{stats.absent}</p>
-          </div>
-          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-2 rounded-lg shadow text-white">
+          </button>
+
+          <button
+            onClick={() => handleCardClick('students', 'All Students Classes')}
+            className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
+          >
             <Users className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Students</p>
             <p className="text-xl font-bold">{stats.students}</p>
-          </div>
+          </button>
         </div>
 
+        {/* ✅ الكروت الصغيرة CLICKABLE */}
         <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
           {[
-            { icon: Coffee, label: 'Leave', value: stats.leave, color: 'text-orange-600' },
-            { icon: XCircle, label: 'Declined', value: stats.declined, color: 'text-red-500' },
-            { icon: Pause, label: 'Suspended', value: stats.suspended, color: 'text-gray-600' },
-            { icon: BookOpen, label: 'Trial', value: stats.trial, color: 'text-purple-600' },
-            { icon: RefreshCw, label: 'Advance', value: stats.advance, color: 'text-teal-600' },
-            { icon: RotateCcw, label: 'Rescheduled', value: stats.rescheduled, color: 'text-indigo-600' },
-            { icon: Calendar, label: 'Created', value: stats.created, color: 'text-blue-600' },
-            { icon: XCircle, label: 'Refused', value: stats.refused, color: 'text-red-500' }
+            { icon: Coffee, label: 'Leave', value: stats.leave, color: 'text-orange-600', status: 'leave' },
+            { icon: XCircle, label: 'Declined', value: stats.declined, color: 'text-red-500', status: 'declined' },
+            { icon: Pause, label: 'Suspended', value: stats.suspended, color: 'text-gray-600', status: 'suspended' },
+            { icon: BookOpen, label: 'Trial', value: stats.trial, color: 'text-purple-600', status: 'trial' },
+            { icon: RefreshCw, label: 'Advance', value: stats.advance, color: 'text-teal-600', status: 'advance' },
+            { icon: RotateCcw, label: 'Rescheduled', value: stats.rescheduled, color: 'text-indigo-600', status: 'rescheduled' },
+            { icon: Calendar, label: 'Created', value: stats.created, color: 'text-blue-600', status: 'created' },
+            { icon: XCircle, label: 'Refused', value: stats.refused, color: 'text-red-500', status: 'refused' }
           ].map((stat, idx) => (
-            <div key={idx} className="bg-white p-1.5 rounded border text-center">
+            <button
+              key={idx}
+              onClick={() => handleCardClick(stat.status, `${stat.label} Classes`, stat.status !== 'created' ? stat.status : undefined)}
+              className="bg-white p-1.5 rounded border text-center hover:shadow-xl hover:scale-105 transition-all cursor-pointer hover:border-blue-300"
+            >
               <stat.icon className={`h-3.5 w-3.5 ${stat.color} mx-auto mb-0.5`} />
               <p className="text-xs text-gray-600">{stat.label}</p>
               <p className={`text-base font-bold ${stat.color}`}>{stat.value}</p>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -987,6 +1057,160 @@ export default function DailyClassesManagement({ teachers, children, classes, on
           <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <p className="text-lg font-bold text-gray-900 mb-1">No classes found</p>
           <p className="text-sm text-gray-600">Classes will appear here based on your selected filters</p>
+        </div>
+      )}
+
+      {/* ✅ NEW: Card Details Modal */}
+      {selectedCardFilter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-7xl w-full mx-auto max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">{selectedCardFilter.title}</h2>
+                  <p className="text-blue-100 text-sm">
+                    Total: {getClassesByCardFilter().length} {getClassesByCardFilter().length === 1 ? 'class' : 'classes'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedCardFilter(null)}
+                  className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {getClassesByCardFilter().length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Date & Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Student</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Teacher</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Course</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Duration</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {getClassesByCardFilter().map((classItem) => {
+                        const teacher = teachers.find(t => t.id === classItem.teacherId);
+                        const student = children.find(c => c.id === classItem.studentId);
+                        const course = courses.find(c => c.id === classItem.courseId);
+                        
+                        return (
+                          <tr key={classItem.id} className="hover:bg-blue-50 transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-xs font-mono font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                                #{classItem.id.slice(-6)}
+                              </span>
+                            </td>
+                            
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="h-4 w-4 text-blue-600" />
+                                <span className="font-bold text-gray-900">{classItem.appointmentDate}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
+                                <Clock className="h-3 w-3" />
+                                <span>{classItem.appointmentTime}</span>
+                              </div>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-semibold text-gray-900">{student?.name || 'Unknown'}</div>
+                              <div className="text-xs text-gray-500">{student?.level || 'No level'}</div>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-semibold text-gray-900">{teacher?.name || 'Unknown'}</div>
+                              <div className="text-xs text-gray-500">{teacher?.subject || 'No subject'}</div>
+                            </td>
+                            
+                            <td className="px-4 py-3">
+                              {course ? (
+                                <>
+                                  <div className="text-sm font-semibold text-purple-900">{course.title}</div>
+                                  <div className="text-xs text-purple-600">{course.level}</div>
+                                </>
+                              ) : (
+                                <span className="text-xs text-gray-400">No course</span>
+                              )}
+                            </td>
+                            
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                {getStatusIcon(classItem.status)}
+                                <span className={`px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
+                                  {classItem.status}
+                                </span>
+                              </div>
+                            </td>
+                            
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-sm font-semibold text-gray-900">{classItem.duration} min</span>
+                            </td>
+                            
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setShowStudentDetails(classItem.studentId);
+                                    setSelectedCardFilter(null);
+                                  }}
+                                  className="p-2 hover:bg-indigo-50 rounded-lg border border-indigo-200 transition-colors"
+                                  title="View Student Details"
+                                >
+                                  <Eye className="h-4 w-4 text-indigo-600" />
+                                </button>
+                                
+                                <button
+                                  onClick={() => {
+                                    setShowHistoryModal(classItem.id);
+                                    setSelectedCardFilter(null);
+                                  }}
+                                  className="p-2 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors"
+                                  title="View History"
+                                >
+                                  <History className="h-4 w-4 text-purple-600" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <Calendar className="h-20 w-20 text-gray-300 mx-auto mb-4" />
+                  <p className="text-xl font-bold text-gray-900 mb-2">No Classes Found</p>
+                  <p className="text-gray-600">There are no classes matching this criteria.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
+              <p className="text-sm text-gray-600">
+                Showing {getClassesByCardFilter().length} {getClassesByCardFilter().length === 1 ? 'class' : 'classes'}
+              </p>
+              <button
+                onClick={() => setSelectedCardFilter(null)}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-bold shadow-lg"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
