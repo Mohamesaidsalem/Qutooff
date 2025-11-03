@@ -358,63 +358,63 @@ export default function DailyClassesManagement({ teachers, children, classes, on
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-2">
+      {/* Header - تصغير المسافات فقط */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Daily Classes Management</h2>
-          <p className="mt-2 text-sm text-gray-600">View and manage all daily classes (Add new classes from Teacher Schedule)</p>
-          <div className="mt-1 flex items-center text-xs text-blue-600">
+          <h2 className="text-xl font-bold text-gray-900">Daily Classes Management</h2>
+          <p className="mt-1 text-xs text-gray-600">View and manage all daily classes (Add new classes from Teacher Schedule)</p>
+          <div className="mt-0.5 flex items-center text-xs text-blue-600">
             <Clock className="h-3 w-3 mr-1" />
             <span>Your timezone: {getTimezoneDisplayName(userTimezone)}</span>
           </div>
         </div>
-        <div className="flex gap-3">
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center shadow-sm">
-            <Download className="h-4 w-4 mr-2" />
+        <div className="flex gap-2">
+          <button className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors flex items-center shadow-sm text-sm">
+            <Download className="h-4 w-4 mr-1.5" />
             Export
           </button>
         </div>
       </div>
 
-      {/* Statistics */}
-      <div className="space-y-3">
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-lg shadow text-white">
-            <BookOpen className="h-6 w-6 mb-1" />
+      {/* Statistics - تصغير padding و gaps */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg shadow text-white">
+            <BookOpen className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Total</p>
-            <p className="text-2xl font-bold">{stats.total}</p>
+            <p className="text-xl font-bold">{stats.total}</p>
           </div>
           
-          <div className="bg-gradient-to-br from-green-500 to-green-600 p-3 rounded-lg shadow text-white">
-            <CheckCircle className="h-6 w-6 mb-1" />
+          <div className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-lg shadow text-white">
+            <CheckCircle className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Taken</p>
-            <p className="text-2xl font-bold">{stats.taken}</p>
+            <p className="text-xl font-bold">{stats.taken}</p>
           </div>
           
-          <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 p-3 rounded-lg shadow text-white">
-            <Clock className="h-6 w-6 mb-1" />
+          <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 p-2 rounded-lg shadow text-white">
+            <Clock className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Scheduled</p>
-            <p className="text-2xl font-bold">{stats.remaining}</p>
+            <p className="text-xl font-bold">{stats.remaining}</p>
           </div>
-          <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-3 rounded-lg shadow text-white">
-            <Clock className="h-6 w-6 mb-1" />
+          <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-2 rounded-lg shadow text-white">
+            <Clock className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Running</p>
-            <p className="text-2xl font-bold">{stats.running}</p>
+            <p className="text-xl font-bold">{stats.running}</p>
           </div>
-          <div className="bg-gradient-to-br from-red-500 to-red-600 p-3 rounded-lg shadow text-white">
-            <UserX className="h-6 w-6 mb-1" />
+          <div className="bg-gradient-to-br from-red-500 to-red-600 p-2 rounded-lg shadow text-white">
+            <UserX className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Absent</p>
-            <p className="text-2xl font-bold">{stats.absent}</p>
+            <p className="text-xl font-bold">{stats.absent}</p>
           </div>
-          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-3 rounded-lg shadow text-white">
-            <Users className="h-6 w-6 mb-1" />
+          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-2 rounded-lg shadow text-white">
+            <Users className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Students</p>
-            <p className="text-2xl font-bold">{stats.students}</p>
+            <p className="text-xl font-bold">{stats.students}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
           {[
             { icon: Coffee, label: 'Leave', value: stats.leave, color: 'text-orange-600' },
             { icon: XCircle, label: 'Declined', value: stats.declined, color: 'text-red-500' },
@@ -425,21 +425,21 @@ export default function DailyClassesManagement({ teachers, children, classes, on
             { icon: Calendar, label: 'Created', value: stats.created, color: 'text-blue-600' },
             { icon: XCircle, label: 'Refused', value: stats.refused, color: 'text-red-500' }
           ].map((stat, idx) => (
-            <div key={idx} className="bg-white p-2 rounded border text-center">
-              <stat.icon className={`h-4 w-4 ${stat.color} mx-auto mb-1`} />
+            <div key={idx} className="bg-white p-1.5 rounded border text-center">
+              <stat.icon className={`h-3.5 w-3.5 ${stat.color} mx-auto mb-0.5`} />
               <p className="text-xs text-gray-600">{stat.label}</p>
-              <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
+              <p className={`text-base font-bold ${stat.color}`}>{stat.value}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      {/* Filters - تصغير padding */}
+      <div className="bg-white p-2.5 rounded-lg shadow-sm border">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date Filter</label>
-            <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Date Filter</label>
+            <select value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="all">All Dates</option>
               <option value="today">Today</option>
               <option value="week">This Week</option>
@@ -447,8 +447,8 @@ export default function DailyClassesManagement({ teachers, children, classes, on
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status Filter</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Status Filter</label>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="all">All Statuses</option>
               <option value="scheduled">Scheduled</option>
               <option value="running">Running</option>
@@ -458,8 +458,8 @@ export default function DailyClassesManagement({ teachers, children, classes, on
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Course Filter</label>
-            <select value={filterCourse} onChange={(e) => setFilterCourse(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Course Filter</label>
+            <select value={filterCourse} onChange={(e) => setFilterCourse(e.target.value)} className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="all">All Courses</option>
               {courses.map(course => (
                 <option key={course.id} value={course.id}>{course.title}</option>
@@ -467,12 +467,12 @@ export default function DailyClassesManagement({ teachers, children, classes, on
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">View Mode</label>
-            <div className="flex gap-2">
-              <button onClick={() => setViewMode('grid')} className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+            <label className="block text-xs font-medium text-gray-700 mb-1">View Mode</label>
+            <div className="flex gap-1.5">
+              <button onClick={() => setViewMode('grid')} className={`flex-1 px-3 py-1.5 rounded-lg font-medium transition-colors ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
                 <Grid3x3 className="h-4 w-4 mx-auto" />
               </button>
-              <button onClick={() => setViewMode('table')} className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+              <button onClick={() => setViewMode('table')} className={`flex-1 px-3 py-1.5 rounded-lg font-medium transition-colors ${viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
                 <Table className="h-4 w-4 mx-auto" />
               </button>
             </div>
@@ -482,32 +482,32 @@ export default function DailyClassesManagement({ teachers, children, classes, on
 
       {/* Grid View */}
       {viewMode === 'grid' && filteredClasses.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredClasses.map((classItem) => {
             const teacher = teachers.find(t => t.id === classItem.teacherId);
             const student = children.find(c => c.id === classItem.studentId);
             const course = courses.find(c => c.id === classItem.courseId);
             
             return (
-              <div key={classItem.id} className="bg-white rounded-xl shadow-lg border-2 border-gray-100 p-5 hover:shadow-2xl transition-all hover:border-blue-200">
-                <div className="flex items-start justify-between mb-4 pb-3 border-b">
+              <div key={classItem.id} className="bg-white rounded-xl shadow-lg border-2 border-gray-100 p-4 hover:shadow-2xl transition-all hover:border-blue-200">
+                <div className="flex items-start justify-between mb-3 pb-2 border-b">
                   <div className="flex items-center gap-2">
                     {getStatusIcon(classItem.status)}
-                    <span className={`px-3 py-1 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
+                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
                       {classItem.status.toUpperCase()}
                     </span>
                   </div>
-                  <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                  <span className="text-xs font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
                     #{classItem.id.slice(-6)}
                   </span>
                 </div>
 
-                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Clock className="h-4 w-4 text-blue-600" />
+                <div className="mb-3 p-2.5 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Clock className="h-3.5 w-3.5 text-blue-600" />
                     <span className="text-xs font-bold text-blue-900">CLASS TIMES</span>
                   </div>
-                  <div className="space-y-1 text-xs">
+                  <div className="space-y-0.5 text-xs">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Admin Time:</span>
                       <span className="font-semibold text-gray-900">{formatTime(classItem.adminTime)}</span>
@@ -530,7 +530,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         {formatTimeWithTimezone(classItem.onlineTime, teacher?.timezone)}
                       </span>
                     </div>
-                    <div className="flex justify-between border-t pt-1 mt-1">
+                    <div className="flex justify-between border-t pt-0.5 mt-0.5">
                       <span className="text-gray-600 font-bold">Appointment:</span>
                       <span className="font-bold text-blue-600">{classItem.appointmentTime}</span>
                     </div>
@@ -538,9 +538,9 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                 </div>
 
                 {course && (
-                  <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-                    <div className="flex items-center gap-2 mb-1">
-                      <BookOpen className="h-4 w-4 text-purple-600" />
+                  <div className="mb-3 p-2.5 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <BookOpen className="h-3.5 w-3.5 text-purple-600" />
                       <span className="text-xs font-semibold text-purple-900">COURSE</span>
                     </div>
                     <p className="text-sm font-bold text-purple-900">{course.title}</p>
@@ -548,33 +548,33 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   </div>
                 )}
 
-                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg">
+                <div className="mb-3 p-2.5 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-blue-600" />
-                      <span className="font-bold text-blue-900">{classItem.appointmentDate}</span>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                      <span className="font-bold text-blue-900 text-sm">{classItem.appointmentDate}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-blue-600" />
-                      <span className="font-bold text-blue-900">{classItem.appointmentTime}</span>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-blue-600" />
+                      <span className="font-bold text-blue-900 text-sm">{classItem.appointmentTime}</span>
                     </div>
                   </div>
-                  <p className="text-xs text-blue-700 mt-1">Duration: {classItem.duration} min</p>
+                  <p className="text-xs text-blue-700 mt-0.5">Duration: {classItem.duration} min</p>
                 </div>
 
-                <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-1 font-semibold">STUDENT</p>
+                <div className="mb-2.5 p-2.5 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-0.5 font-semibold">STUDENT</p>
                   <p className="text-sm font-bold text-gray-900">{student?.name || 'Unknown'}</p>
                   <p className="text-xs text-gray-600">{student?.level || 'No level'}</p>
                 </div>
 
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-1 font-semibold">TEACHER</p>
+                <div className="mb-3 p-2.5 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-0.5 font-semibold">TEACHER</p>
                   <p className="text-sm font-bold text-gray-900">{teacher?.name || 'Unknown'}</p>
                   <p className="text-xs text-gray-600">{teacher?.subject || teacher?.specialization || 'No subject'}</p>
                   
                   {classItem.shiftHistory && classItem.shiftHistory.length > 0 && (
-                    <div className="mt-2 p-2 bg-orange-100 rounded border border-orange-300">
+                    <div className="mt-1.5 p-1.5 bg-orange-100 rounded border border-orange-300">
                       <p className="text-xs text-orange-700 font-semibold flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" />
                         Teacher Shifted
@@ -586,19 +586,19 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t">
+                <div className="grid grid-cols-2 gap-1.5 mt-3 pt-3 border-t">
                   {classItem.status === 'scheduled' && (
                     <>
                       <button 
                         onClick={() => handleUpdateStatus(classItem.id, 'running')}
-                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                       >
                         <Clock className="h-3 w-3" />
                         Start
                       </button>
                       <button 
                         onClick={() => handleUpdateStatus(classItem.id, 'absent')}
-                        className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                        className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                       >
                         <UserX className="h-3 w-3" />
                         Absent
@@ -608,7 +608,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   {classItem.status === 'running' && (
                     <button 
                       onClick={() => handleUpdateStatus(classItem.id, 'taken')}
-                      className="col-span-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                      className="col-span-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                     >
                       <CheckCircle className="h-3 w-3" />
                       Complete
@@ -617,7 +617,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   
                   <button 
                     onClick={() => handleOpenShiftModal(classItem)}
-                    className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                    className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                   >
                     <UserCog className="h-3 w-3" />
                     Shift
@@ -625,14 +625,14 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   
                   <button 
                     onClick={() => setShowStudentDetails(classItem.studentId)}
-                    className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                    className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                   >
                     <Eye className="h-3 w-3" />
                     View
                   </button>
                   <button 
                     onClick={() => setShowHistoryModal(classItem.id)}
-                    className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                    className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                   >
                     <History className="h-3 w-3" />
                     History
@@ -642,7 +642,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                       href={classItem.zoomLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="col-span-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                      className="col-span-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                     >
                       <Video className="h-3 w-3" />
                       Join Zoom
@@ -650,14 +650,14 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   )}
                   <button 
                     onClick={() => handleDeleteClass(classItem.id)}
-                    className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                    className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                   >
                     <Trash2 className="h-3 w-3" />
                     Delete
                   </button>
                   
                   <div className="relative group">
-                    <button className="w-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1">
+                    <button className="w-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1">
                       <Edit className="h-3 w-3" />
                       More
                     </button>
@@ -690,8 +690,8 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                 </div>
 
                 {classItem.notes && (
-                  <div className="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="mt-2.5 p-2.5 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div className="flex items-center gap-2 mb-0.5">
                       <FileText className="h-3 w-3 text-yellow-700" />
                       <span className="text-xs font-semibold text-yellow-900">NOTES</span>
                     </div>
@@ -700,8 +700,8 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                 )}
 
                 {classItem.rating && (
-                  <div className="mt-3 flex items-center gap-2 p-2 bg-amber-50 rounded-lg">
-                    <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                  <div className="mt-2.5 flex items-center gap-2 p-1.5 bg-amber-50 rounded-lg">
+                    <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
                     <span className="text-sm font-bold text-amber-900">{classItem.rating}/5</span>
                   </div>
                 )}
@@ -714,27 +714,27 @@ export default function DailyClassesManagement({ teachers, children, classes, on
       {/* Table View */}
       {viewMode === 'table' && filteredClasses.length > 0 && (
         <div className="bg-white shadow-lg rounded-xl border-2 border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-            <h3 className="text-lg font-bold text-gray-900">Daily Classes Table ({filteredClasses.length})</h3>
-            <p className="text-sm text-gray-600">Comprehensive view of all class sessions</p>
+          <div className="px-4 py-2.5 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+            <h3 className="text-base font-bold text-gray-900">Daily Classes Table ({filteredClasses.length})</h3>
+            <p className="text-xs text-gray-600">Comprehensive view of all class sessions</p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">A-Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">T-Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">S-Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Online</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Student</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Course</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">History</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Teacher</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Shift</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Action</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">A-Time</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">T-Time</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">S-Time</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Online</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Student</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Course</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">History</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Teacher</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Shift</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -745,20 +745,20 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   
                   return (
                     <tr key={classItem.id} className="hover:bg-blue-50 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs font-mono font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className="text-xs font-mono font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded">
                           {classItem.id.slice(-7)}
                         </span>
                       </td>
                       
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3 text-purple-600" />
                           <span className="text-xs font-semibold text-gray-900">{formatTime(classItem.adminTime)}</span>
                         </div>
                       </td>
                       
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-blue-600" />
                           <span className="text-xs font-bold text-gray-900">{classItem.appointmentDate}</span>
@@ -766,7 +766,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         <div className="text-xs text-gray-600">{classItem.appointmentTime}</div>
                       </td>
                       
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3 text-indigo-600" />
                           <span className="text-xs font-semibold text-gray-900">
@@ -776,7 +776,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         <div className="text-xs text-gray-500">{teacher?.timezone || 'UTC'}</div>
                       </td>
                       
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3 text-cyan-600" />
                           <span className="text-xs font-semibold text-gray-900">
@@ -786,7 +786,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         <div className="text-xs text-gray-500">{student?.timezone || 'UTC'}</div>
                       </td>
                       
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3 text-green-600" />
                           <span className="text-xs font-bold text-green-600">
@@ -796,12 +796,12 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         <div className="text-xs text-gray-500">{teacher?.timezone || 'UTC'}</div>
                       </td>
                       
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <div className="text-sm font-semibold text-gray-900">{student?.name || 'Unknown'}</div>
                         <div className="text-xs text-gray-500">{student?.level || 'No level'}</div>
                       </td>
                       
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         {course ? (
                           <div>
                             <div className="text-sm font-semibold text-purple-900">{course.title}</div>
@@ -812,47 +812,47 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         )}
                       </td>
                       
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2 text-center">
                         <button 
                           onClick={() => setShowHistoryModal(classItem.id)}
-                          className="p-2 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors inline-flex"
+                          className="p-1.5 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors inline-flex"
                           title="View History"
                         >
-                          <History className="h-4 w-4 text-purple-600" />
+                          <History className="h-3.5 w-3.5 text-purple-600" />
                         </button>
                       </td>
                       
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <div className="text-sm font-semibold text-gray-900">{teacher?.name || 'Unknown'}</div>
                         <div className="text-xs text-gray-500">{teacher?.subject || teacher?.specialization || 'No subject'}</div>
                         {classItem.shiftHistory && classItem.shiftHistory.length > 0 && (
-                          <div className="text-xs text-orange-600 font-semibold mt-1 flex items-center gap-1">
+                          <div className="text-xs text-orange-600 font-semibold mt-0.5 flex items-center gap-1">
                             <AlertCircle className="h-3 w-3" />
                             Shifted
                           </div>
                         )}
                       </td>
                       
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
                           {getStatusIcon(classItem.status)}
-                          <span className={`px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
+                          <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
                             {classItem.status}
                           </span>
                         </div>
                       </td>
                       
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2 text-center">
                         <button 
                           onClick={() => handleOpenShiftModal(classItem)}
-                          className="p-2 hover:bg-orange-50 rounded-lg border border-orange-300 transition-colors inline-flex items-center justify-center bg-orange-50"
+                          className="p-1.5 hover:bg-orange-50 rounded-lg border border-orange-300 transition-colors inline-flex items-center justify-center bg-orange-50"
                           title="Shift Teacher"
                         >
-                          <UserCog className="h-4 w-4 text-orange-600" />
+                          <UserCog className="h-3.5 w-3.5 text-orange-600" />
                         </button>
                       </td>
                       
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           {classItem.status === 'scheduled' && (
                             <>
@@ -914,12 +914,12 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                             className="p-1 hover:bg-indigo-50 rounded border border-indigo-200 transition-colors"
                             title="View Student Details"
                           >
-                            <Eye className="h-4 w-4 text-indigo-600" />
+                            <Eye className="h-3.5 w-3.5 text-indigo-600" />
                           </button>
                           
                           <div className="relative group">
                             <button className="p-1 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
-                              <Edit className="h-4 w-4 text-gray-600" />
+                              <Edit className="h-3.5 w-3.5 text-gray-600" />
                             </button>
                             <div className="absolute right-0 top-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-2xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 min-w-[160px]">
                               <div className="px-3 py-2 text-xs font-bold text-gray-500 border-b mb-1">CHANGE STATUS</div>
@@ -983,9 +983,9 @@ export default function DailyClassesManagement({ teachers, children, classes, on
 
       {/* Empty State */}
       {filteredClasses.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-xl border-2 border-gray-100">
-          <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-xl font-bold text-gray-900 mb-2">No classes found</p>
+        <div className="text-center py-12 bg-white rounded-xl border-2 border-gray-100">
+          <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-lg font-bold text-gray-900 mb-1">No classes found</p>
           <p className="text-sm text-gray-600">Classes will appear here based on your selected filters</p>
         </div>
       )}

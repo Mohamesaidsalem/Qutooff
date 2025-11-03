@@ -4,7 +4,7 @@ import { LogIn, LogOut, DollarSign, Calendar, Shield, Settings, ChevronDown, Men
 import { useAuth } from '../../contexts/AuthContext';
 import { ref, push, set } from 'firebase/database';
 import { database } from '../../firebase/config';
-
+import logo from '../../assets/logo.png';
 // Import Add Options Modals
 import AddEmployeeModal from '../Modals/AddEmployeeModal';
 import AddFamilyModal from '../Modals/AddFamilyModal';
@@ -286,13 +286,15 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div 
-              className="flex-shrink-0 cursor-pointer"
-              onClick={() => navigate('/')}
-            >
-              <div className="text-2xl font-bold bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 bg-clip-text text-transparent">
-                Quraan Academy
-              </div>
-            </div>
+  className="flex-shrink-0 cursor-pointer"
+  onClick={() => navigate('/')}
+>
+  <img 
+    src={logo} 
+    alt="Quraan Academy Logo" 
+    className="h-16 w-auto object-contain"
+  />
+</div>
 
             {!user && (
               <div className="hidden md:flex items-center space-x-6">

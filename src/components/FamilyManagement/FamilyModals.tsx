@@ -3,7 +3,9 @@ import {
   X, UserPlus, Edit, Users, History, Globe, MapPin, 
   Mail, Phone, Clock, Key, LinkIcon, Baby
 } from 'lucide-react';
-import { TIMEZONES, STUDENT_LEVELS, Child, Family } from './familyHelpers';
+// ✅ Fixed: استخدام alias للـ COMPLETE_TIMEZONES
+import { COMPLETE_TIMEZONES as TIMEZONES, STUDENT_LEVELS } from '../../utils/timezone';
+import { Child, Family } from './familyHelpers';
 
 // ============================================
 // ASSIGN TO FAMILY MODAL
@@ -268,7 +270,7 @@ export const EditStudentModal: React.FC<EditStudentModalProps> = ({
 };
 
 // ============================================
-// EDIT PARENT MODAL
+// EDIT PARENT MODAL - Simple Version
 // ============================================
 
 interface EditParentModalProps {

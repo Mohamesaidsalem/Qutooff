@@ -113,7 +113,7 @@ export default function Hero({ onGetStarted }: HeroProps) {
 
       <img
 
-        src="node_modules\public\holding-book-moonlight.jpg"
+        src="src/assets/Quraan.jpg"
 
         alt="Quran Learning"
 

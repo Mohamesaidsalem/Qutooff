@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Users, Home, Eye, Trash2, Globe, ArrowRight, Edit,
   Mail, Phone, Clock, MapPin, GraduationCap, Baby,
-  TrendingUp, User, Calendar, LinkIcon, X
+  TrendingUp, User, Calendar, LinkIcon, X, DollarSign, PauseCircle
 } from 'lucide-react';
 import { Child, Family, getFamilyChildren, isIndependentAccount } from './familyHelpers';
 
@@ -213,7 +213,29 @@ export const IndependentStudentsList: React.FC<IndependentStudentsListProps> = (
                   <div className="h-8 w-8 rounded-full bg-gray-500 flex items-center justify-center text-white font-bold text-sm">
                     {student.name.charAt(0)}
                   </div>
-                  <div className="font-medium text-gray-900">{student.name}</div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{student.name}</span>
+                      {/* Status Badges */}
+                      {student.status === 'suspended' && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 flex items-center gap-1">
+                          <PauseCircle className="h-3 w-3" />
+                          Suspended
+                        </span>
+                      )}
+                      {student.status === 'on-hold' && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-200 text-gray-700 flex items-center gap-1">
+                          <PauseCircle className="h-3 w-3" />
+                          On Hold
+                        </span>
+                      )}
+                      {student.status === 'inactive' && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </td>
               <td className="px-4 py-3 text-sm">
@@ -305,6 +327,7 @@ interface FamilyDetailsViewProps {
   onAddStudent: () => void;
   onDeleteStudent: (familyId: string, studentId: string, studentName: string) => void;
   onShowFamilyTree: () => void;
+  onAddInvoice: () => void;
 }
 
 export const FamilyDetailsView: React.FC<FamilyDetailsViewProps> = ({
@@ -316,7 +339,8 @@ export const FamilyDetailsView: React.FC<FamilyDetailsViewProps> = ({
   onEditStudent,
   onAddStudent,
   onDeleteStudent,
-  onShowFamilyTree
+  onShowFamilyTree,
+  onAddInvoice,
 }) => {
   const familyChildren = getFamilyChildren(family, children);
 
@@ -330,6 +354,15 @@ export const FamilyDetailsView: React.FC<FamilyDetailsViewProps> = ({
         >
           <ArrowRight className="h-5 w-5 text-blue-600 rotate-180" />
           <span className="font-medium text-gray-900">Back to List</span>
+        </button>
+
+        {/* Add Invoice Button */}
+        <button
+          onClick={onAddInvoice}
+          className="bg-gradient-to-r from-emerald-600 to-green-600 text-white px-4 py-2 rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all flex items-center gap-2 shadow-md"
+        >
+          <DollarSign className="h-5 w-5" />
+          Add Invoice
         </button>
       </div>
 
@@ -438,7 +471,28 @@ export const FamilyDetailsView: React.FC<FamilyDetailsViewProps> = ({
                         {child.name.charAt(0)}
                       </div>
                       <div>
-                        <h4 className="font-bold text-gray-900">{child.name}</h4>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-gray-900">{child.name}</h4>
+                          
+                          {/* Status Badges */}
+                          {child.status === 'suspended' && (
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 flex items-center gap-1">
+                              <PauseCircle className="h-3 w-3" />
+                              Suspended
+                            </span>
+                          )}
+                          {child.status === 'on-hold' && (
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-200 text-gray-700 flex items-center gap-1">
+                              <PauseCircle className="h-3 w-3" />
+                              On Hold
+                            </span>
+                          )}
+                          {child.status === 'inactive' && (
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                              Inactive
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-600">{child.age} yrs • {child.level}</p>
                         {child.timezone && (
                           <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
@@ -589,6 +643,30 @@ export const SimpleFamilyTree: React.FC<SimpleFamilyTreeProps> = ({
                   </div>
                   
                   <h4 className="font-bold text-gray-900 mb-1">{child.name}</h4>
+                  
+                  {/* Status Badge in Family Tree */}
+                  {(child.status === 'suspended' || child.status === 'on-hold' || child.status === 'inactive') && (
+                    <div className="mb-2">
+                      {child.status === 'suspended' && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 inline-flex items-center gap-1">
+                          <PauseCircle className="h-3 w-3" />
+                          Suspended
+                        </span>
+                      )}
+                      {child.status === 'on-hold' && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-200 text-gray-700 inline-flex items-center gap-1">
+                          <PauseCircle className="h-3 w-3" />
+                          On Hold
+                        </span>
+                      )}
+                      {child.status === 'inactive' && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
                   <p className="text-xs text-gray-600 mb-2">
                     {child.age} years • {child.level}
                   </p>

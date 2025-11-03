@@ -1,363 +1,834 @@
-// Timezone utility functions
+// ============================================
+// COMPLETE TIMEZONES LIST
+// ============================================
 
-/**
- * Get user's current timezone
- */
-export const getUserTimezone = (): string => {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-};
-
-/**
- * Get timezone offset in hours (for display purposes).
- * Note: This might not be precise for all historical or future dates due to DST changes.
- */
-export const getTimezoneOffset = (timezone?: string): number => {
-  const tz = timezone || getUserTimezone();
-  const date = new Date();
-  // Get UTC time at the current moment
-  const utcDate = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
-  // Get local time in the specified timezone at the current moment
-  const localDate = new Date(date.toLocaleString("en-US", { timeZone: tz }));
+export const COMPLETE_TIMEZONES = [
+  // Africa
+  'Africa/Abidjan',
+  'Africa/Accra',
+  'Africa/Addis_Ababa',
+  'Africa/Algiers',
+  'Africa/Cairo',
+  'Africa/Casablanca',
+  'Africa/Dakar',
+  'Africa/Dar_es_Salaam',
+  'Africa/Harare',
+  'Africa/Johannesburg',
+  'Africa/Kampala',
+  'Africa/Khartoum',
+  'Africa/Kinshasa',
+  'Africa/Lagos',
+  'Africa/Luanda',
+  'Africa/Maputo',
+  'Africa/Nairobi',
+  'Africa/Tunis',
+  'Africa/Windhoek',
   
-  // Calculate the difference in hours
-  return (localDate.getTime() - utcDate.getTime()) / (1000 * 60 * 60);
-};
+  // Americas - North America
+  'America/Anchorage',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/New_York',
+  'America/Phoenix',
+  'America/Toronto',
+  'America/Vancouver',
+  'America/Winnipeg',
+  
+  // Americas - Central America
+  'America/Costa_Rica',
+  'America/El_Salvador',
+  'America/Guatemala',
+  'America/Havana',
+  'America/Jamaica',
+  'America/Managua',
+  'America/Mexico_City',
+  'America/Panama',
+  'America/Tegucigalpa',
+  
+  // Americas - South America
+  'America/Asuncion',
+  'America/Bogota',
+  'America/Buenos_Aires',
+  'America/Caracas',
+  'America/La_Paz',
+  'America/Lima',
+  'America/Montevideo',
+  'America/Santiago',
+  'America/Sao_Paulo',
+  
+  // Asia - Middle East
+  'Asia/Amman',
+  'Asia/Baghdad',
+  'Asia/Bahrain',
+  'Asia/Beirut',
+  'Asia/Damascus',
+  'Asia/Dubai',
+  'Asia/Gaza',
+  'Asia/Jerusalem',
+  'Asia/Kuwait',
+  'Asia/Muscat',
+  'Asia/Nicosia',
+  'Asia/Qatar',
+  'Asia/Riyadh',
+  'Asia/Tehran',
+  
+  // Asia - Central Asia
+  'Asia/Almaty',
+  'Asia/Ashgabat',
+  'Asia/Baku',
+  'Asia/Bishkek',
+  'Asia/Dushanbe',
+  'Asia/Kabul',
+  'Asia/Karachi',
+  'Asia/Tashkent',
+  'Asia/Tbilisi',
+  'Asia/Yerevan',
+  
+  // Asia - South Asia
+  'Asia/Colombo',
+  'Asia/Dhaka',
+  'Asia/Kathmandu',
+  'Asia/Kolkata',
+  'Asia/Thimphu',
+  
+  // Asia - Southeast Asia
+  'Asia/Bangkok',
+  'Asia/Ho_Chi_Minh',
+  'Asia/Jakarta',
+  'Asia/Kuala_Lumpur',
+  'Asia/Manila',
+  'Asia/Phnom_Penh',
+  'Asia/Singapore',
+  'Asia/Vientiane',
+  'Asia/Yangon',
+  
+  // Asia - East Asia
+  'Asia/Chongqing',
+  'Asia/Hong_Kong',
+  'Asia/Macau',
+  'Asia/Pyongyang',
+  'Asia/Seoul',
+  'Asia/Shanghai',
+  'Asia/Taipei',
+  'Asia/Tokyo',
+  'Asia/Ulaanbaatar',
+  
+  // Australia & Pacific
+  'Australia/Adelaide',
+  'Australia/Brisbane',
+  'Australia/Canberra',
+  'Australia/Darwin',
+  'Australia/Hobart',
+  'Australia/Melbourne',
+  'Australia/Perth',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+  'Pacific/Fiji',
+  'Pacific/Guam',
+  'Pacific/Honolulu',
+  'Pacific/Pago_Pago',
+  'Pacific/Port_Moresby',
+  'Pacific/Samoa',
+  'Pacific/Tahiti',
+  'Pacific/Tongatapu',
+  
+  // Europe - Western Europe
+  'Europe/Dublin',
+  'Europe/Lisbon',
+  'Europe/London',
+  
+  // Europe - Central Europe
+  'Europe/Amsterdam',
+  'Europe/Andorra',
+  'Europe/Berlin',
+  'Europe/Brussels',
+  'Europe/Copenhagen',
+  'Europe/Madrid',
+  'Europe/Monaco',
+  'Europe/Oslo',
+  'Europe/Paris',
+  'Europe/Prague',
+  'Europe/Rome',
+  'Europe/Stockholm',
+  'Europe/Vienna',
+  'Europe/Warsaw',
+  'Europe/Zurich',
+  
+  // Europe - Eastern Europe
+  'Europe/Athens',
+  'Europe/Bucharest',
+  'Europe/Budapest',
+  'Europe/Helsinki',
+  'Europe/Istanbul',
+  'Europe/Kiev',
+  'Europe/Minsk',
+  'Europe/Moscow',
+  'Europe/Riga',
+  'Europe/Sofia',
+  'Europe/Tallinn',
+  'Europe/Vilnius',
+  
+  // Atlantic
+  'Atlantic/Azores',
+  'Atlantic/Bermuda',
+  'Atlantic/Cape_Verde',
+  'Atlantic/Reykjavik',
+];
 
-/**
- * Get formatted timezone display name (e.g., "Africa/Cairo (EET)" or "Cairo (UTC+2)")
- * @param timezone - Timezone string (optional, auto-detected if not provided)
- * @param format - 'short' (e.g., EET) or 'offset' (e.g., UTC+2)
- */
-export const getTimezoneDisplayName = (timezone?: string, format: 'short' | 'offset' = 'short'): string => {
-  const tz = timezone || getUserTimezone();
-  const now = new Date();
+// ============================================
+// COUNTRIES LIST
+// ============================================
 
-  if (format === 'short') {
-    // New (Better) method from the newer code for short name
-    const shortNameMatch = now.toLocaleDateString('en', {
-      timeZoneName: 'short',
-      timeZone: tz,
-    }).match(/[A-Z]{3,5}$/); // Look for 3-5 uppercase letters at the end
+export const COUNTRIES = [
+  // Arab Countries
+  { code: 'SAU', name: 'Saudi Arabia', flag: '🇸🇦' },
+  { code: 'UAE', name: 'United Arab Emirates', flag: '🇦🇪' },
+  { code: 'EGY', name: 'Egypt', flag: '🇪🇬' },
+  { code: 'KWT', name: 'Kuwait', flag: '🇰🇼' },
+  { code: 'QAT', name: 'Qatar', flag: '🇶🇦' },
+  { code: 'BHR', name: 'Bahrain', flag: '🇧🇭' },
+  { code: 'OMN', name: 'Oman', flag: '🇴🇲' },
+  { code: 'JOR', name: 'Jordan', flag: '🇯🇴' },
+  { code: 'LBN', name: 'Lebanon', flag: '🇱🇧' },
+  { code: 'IRQ', name: 'Iraq', flag: '🇮🇶' },
+  { code: 'SYR', name: 'Syria', flag: '🇸🇾' },
+  { code: 'MAR', name: 'Morocco', flag: '🇲🇦' },
+  { code: 'TUN', name: 'Tunisia', flag: '🇹🇳' },
+  { code: 'DZA', name: 'Algeria', flag: '🇩🇿' },
+  { code: 'LBY', name: 'Libya', flag: '🇱🇾' },
+  { code: 'SDN', name: 'Sudan', flag: '🇸🇩' },
+  { code: 'YEM', name: 'Yemen', flag: '🇾🇪' },
+  
+  // English Speaking Countries
+  { code: 'USA', name: 'United States', flag: '🇺🇸' },
+  { code: 'GBR', name: 'United Kingdom', flag: '🇬🇧' },
+  { code: 'CAN', name: 'Canada', flag: '🇨🇦' },
+  { code: 'AUS', name: 'Australia', flag: '🇦🇺' },
+  { code: 'NZL', name: 'New Zealand', flag: '🇳🇿' },
+  { code: 'IRL', name: 'Ireland', flag: '🇮🇪' },
+  
+  // Asian Countries
+  { code: 'PAK', name: 'Pakistan', flag: '🇵🇰' },
+  { code: 'IND', name: 'India', flag: '🇮🇳' },
+  { code: 'BGD', name: 'Bangladesh', flag: '🇧🇩' },
+  { code: 'IDN', name: 'Indonesia', flag: '🇮🇩' },
+  { code: 'MYS', name: 'Malaysia', flag: '🇲🇾' },
+  { code: 'SGP', name: 'Singapore', flag: '🇸🇬' },
+  { code: 'THA', name: 'Thailand', flag: '🇹🇭' },
+  { code: 'PHL', name: 'Philippines', flag: '🇵🇭' },
+  { code: 'CHN', name: 'China', flag: '🇨🇳' },
+  { code: 'JPN', name: 'Japan', flag: '🇯🇵' },
+  { code: 'KOR', name: 'South Korea', flag: '🇰🇷' },
+  { code: 'TUR', name: 'Turkey', flag: '🇹🇷' },
+  
+  // European Countries
+  { code: 'FRA', name: 'France', flag: '🇫🇷' },
+  { code: 'DEU', name: 'Germany', flag: '🇩🇪' },
+  { code: 'ITA', name: 'Italy', flag: '🇮🇹' },
+  { code: 'ESP', name: 'Spain', flag: '🇪🇸' },
+  { code: 'NLD', name: 'Netherlands', flag: '🇳🇱' },
+  { code: 'BEL', name: 'Belgium', flag: '🇧🇪' },
+  { code: 'SWE', name: 'Sweden', flag: '🇸🇪' },
+  { code: 'NOR', name: 'Norway', flag: '🇳🇴' },
+  { code: 'DNK', name: 'Denmark', flag: '🇩🇰' },
+  { code: 'FIN', name: 'Finland', flag: '🇫🇮' },
+  { code: 'POL', name: 'Poland', flag: '🇵🇱' },
+  { code: 'RUS', name: 'Russia', flag: '🇷🇺' },
+  
+  // African Countries
+  { code: 'ZAF', name: 'South Africa', flag: '🇿🇦' },
+  { code: 'NGA', name: 'Nigeria', flag: '🇳🇬' },
+  { code: 'KEN', name: 'Kenya', flag: '🇰🇪' },
+  { code: 'ETH', name: 'Ethiopia', flag: '🇪🇹' },
+  
+  // South American Countries
+  { code: 'BRA', name: 'Brazil', flag: '🇧🇷' },
+  { code: 'ARG', name: 'Argentina', flag: '🇦🇷' },
+  { code: 'CHL', name: 'Chile', flag: '🇨🇱' },
+  { code: 'COL', name: 'Colombia', flag: '🇨🇴' },
+  { code: 'PER', name: 'Peru', flag: '🇵🇪' },
+  { code: 'VEN', name: 'Venezuela', flag: '🇻🇪' },
+];
+
+// ============================================
+// LANGUAGES LIST
+// ============================================
+
+export const LANGUAGES = [
+  'Arabic',
+  'English',
+  'Urdu',
+  'French',
+  'Turkish',
+  'Bengali',
+  'Malay',
+  'Indonesian',
+  'Spanish',
+  'German',
+  'Russian',
+  'Chinese',
+  'Japanese',
+  'Korean',
+  'Hindi',
+  'Persian',
+  'Pashto',
+  'Swahili',
+  'Portuguese',
+  'Italian',
+];
+
+// ============================================
+// STUDENT LEVELS
+// ============================================
+
+export const STUDENT_LEVELS = [
+  'Beginner',
+  'Elementary',
+  'Intermediate',
+  'Advanced',
+  'Expert',
+];
+
+// ============================================
+// PAYMENT MODES
+// ============================================
+
+export const PAYMENT_MODES = [
+  'PayPal',
+  'Bank Transfer',
+  'Credit Card',
+  'Debit Card',
+  'Cash',
+  'Stripe',
+  'Wire Transfer',
+  'Western Union',
+  'MoneyGram',
+];
+
+// ============================================
+// INVOICE TYPES
+// ============================================
+
+export const INVOICE_TYPES = [
+  'Monthly',
+  'Quarterly',
+  'Semi-Annual',
+  'Yearly',
+  'Non-Recurring',
+  'Per Class',
+];
+
+// ============================================
+// INVOICE CYCLES
+// ============================================
+
+export const INVOICE_CYCLES = [
+  '1st of every month',
+  '5th of every month',
+  '10th of every month',
+  '15th of every month',
+  '20th of every month',
+  '25th of every month',
+  'Last day of month',
+  'Custom',
+];
+
+// ============================================
+// CURRENCIES
+// ============================================
+
+export const CURRENCIES = [
+  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'GBP', symbol: '£', name: 'British Pound' },
+  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
+  { code: 'SAR', symbol: 'ر.س', name: 'Saudi Riyal' },
+  { code: 'EGP', symbol: 'E£', name: 'Egyptian Pound' },
+  { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee' },
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
+  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
+  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
+  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit' },
+  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar' },
+  { code: 'TRY', symbol: '₺', name: 'Turkish Lira' },
+  { code: 'BRL', symbol: 'R$', name: 'Brazilian Real' },
+];
+
+// ============================================
+// NOTIFICATION SETTINGS
+// ============================================
+
+export const NOTIFICATION_SETTINGS = [
+  'Email',
+  'SMS',
+  'WhatsApp',
+  'Phone Call',
+  'In-App Only',
+  'All Methods',
+  'None',
+];
+
+// ============================================
+// STUDENT STATUS
+// ============================================
+
+export const STUDENT_STATUS = [
+  { value: 'active', label: '✅ Active', color: 'green' },
+  { value: 'suspended', label: '⛔ Suspended', color: 'yellow' },
+  { value: 'on-hold', label: '🖐 On Hold', color: 'gray' },
+  { value: 'inactive', label: '❌ Inactive', color: 'red' },
+  { value: 'graduated', label: '🎓 Graduated', color: 'purple' },
+  { value: 'trial', label: '🔍 Trial', color: 'blue' },
+];
+
+// ============================================
+// TIMEZONE CONVERSION FUNCTIONS
+// ============================================
+
+export const convertToUTC = (localDate: string, localTime: string, timezone: string = DEFAULT_TIMEZONE): { 
+  utcDate: string; 
+  utcTime: string; 
+  utcDateTime: string;
+  localDateTime: Date;
+  utcDateObj: Date;
+} => {
+  try {
+    // Create a date string in the format: YYYY-MM-DDTHH:mm
+    const localDateTimeStr = `${localDate}T${localTime}`;
     
-    const shortName = shortNameMatch ? shortNameMatch[0] : '';
-    return `${tz} (${shortName})`;
-  } else {
-    // Old method for offset display
-    const offset = getTimezoneOffset(tz);
-    const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`;
+    // Create a date object (this will be in user's local timezone)
+    const localDateTime = new Date(localDateTimeStr);
     
-    // Get city name from timezone (e.g., "Africa/Cairo" -> "Cairo")
-    const cityName = tz.split('/').pop()?.replace('_', ' ') || tz;
+    // Get UTC date and time
+    const utcDateObj = new Date(localDateTime.toLocaleString('en-US', { timeZone: 'UTC' }));
     
-    return `${cityName} (UTC${offsetStr})`;
+    // Format UTC date and time
+    const utcYear = utcDateObj.getFullYear();
+    const utcMonth = String(utcDateObj.getMonth() + 1).padStart(2, '0');
+    const utcDay = String(utcDateObj.getDate()).padStart(2, '0');
+    const utcHours = String(utcDateObj.getHours()).padStart(2, '0');
+    const utcMinutes = String(utcDateObj.getMinutes()).padStart(2, '0');
+    
+    const utcDate = `${utcYear}-${utcMonth}-${utcDay}`;
+    const utcTime = `${utcHours}:${utcMinutes}`;
+    const utcDateTime = `${utcDate}T${utcTime}`;
+    
+    return {
+      utcDate,
+      utcTime,
+      utcDateTime,
+      localDateTime,
+      utcDateObj
+    };
+  } catch (error) {
+    console.error('Error converting to UTC:', error);
+    const now = new Date();
+    const isoString = now.toISOString();
+    return {
+      utcDate: isoString.slice(0, 10),
+      utcTime: isoString.slice(11, 16),
+      utcDateTime: isoString.slice(0, 16),
+      localDateTime: now,
+      utcDateObj: now
+    };
   }
 };
 
-/**
- * Convert local datetime to UTC for storage
- * @param localDate - Date string in YYYY-MM-DD format
- * @param localTime - Time string in HH:MM format
- * @param timezone - User's timezone (optional, auto-detected if not provided)
- * @returns Object with UTC date and time strings, and original values.
- */
-export const convertToUTC = (
-  localDate: string, 
-  localTime: string, 
-  timezone?: string
-) => {
-  const userTimezone = timezone || getUserTimezone();
-  
-  // Create a date object interpreting localDateTlocalTime in the *server's* default timezone, 
-  // then explicitly calculate UTC based on the known offset of the *user's* timezone.
-  // This is a more robust approach than relying on `toLocaleString` for the conversion itself.
-  const localAsUTC = new Date(`${localDate}T${localTime}:00`);
-  const offsetHours = getTimezoneOffset(userTimezone);
-  
-  // Correct UTC: Subtract the timezone offset from the local time (in milliseconds)
-  const correctUTC = new Date(localAsUTC.getTime() - (offsetHours * 60 * 60 * 1000));
-  
-  const utcDate = correctUTC.toISOString().split('T')[0];
-  const utcTime = correctUTC.toTimeString().split(' ')[0].slice(0, 5); // HH:MM format
-  const utcDateTimeStr = correctUTC.toISOString();
-  
-  return {
-    utcDate,
-    utcTime,
-    utcDateTime: utcDateTimeStr,
-    originalLocalDate: localDate, // Added from the newer code
-    originalLocalTime: localTime, // Added from the newer code
-    timezone: userTimezone // Added from the newer code
-  };
-};
-
-/**
- * Convert UTC datetime to user's local timezone for display
- * @param utcDate - UTC date string in YYYY-MM-DD format
- * @param utcTime - UTC time string in HH:MM format
- * @param timezone - User's timezone (optional, auto-detected if not provided)
- * @returns Object with local date, time strings, and full Date object.
- */
-export const convertFromUTC = (
-  utcDate: string, 
-  utcTime: string, 
-  timezone?: string
-) => {
-  const userTimezone = timezone || getUserTimezone();
-  
-  // Create UTC datetime object (using 'Z' to ensure it's interpreted as UTC)
-  const utcDateTime = new Date(`${utcDate}T${utcTime}:00.000Z`);
-  
-  // Convert to user's timezone strings
-  // 'en-CA' gives YYYY-MM-DD
-  const localDate = utcDateTime.toLocaleDateString('en-CA', { timeZone: userTimezone }); 
-  // 'en-GB' with settings gives HH:MM (24-hour)
-  const localTime = utcDateTime.toLocaleTimeString('en-GB', { 
-    timeZone: userTimezone, 
-    hour12: false, 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
-  
-  // A Date object representing the time in the local timezone (useful for comparisons)
-  const localDateTime = new Date(utcDateTime.toLocaleString("en-US", { timeZone: userTimezone }));
-
-  return {
-    localDate,
-    localTime,
-    localDateTime,
-    originalUtcDate: utcDate, // Added from the newer code
-    originalUtcTime: utcTime, // Added from the newer code
-    timezone: userTimezone // Added from the newer code
-  };
-};
-
-/**
- * Convert stored UTC datetime string (ISO format) to local display
- * @param utcDateTime - UTC datetime string (ISO format)
- * @param userTimezone - User's timezone (optional)
- */
-export const utcToLocal = (
-  utcDateTime: string, 
-  userTimezone?: string
-): { localDate: string; localTime: string; localDateTime: Date } => {
-  const utcDate = new Date(utcDateTime);
-  const tz = userTimezone || getUserTimezone();
-  
-  const localDate = utcDate.toLocaleDateString('en-CA', { timeZone: tz });
-  const localTime = utcDate.toLocaleTimeString('en-GB', { 
-    timeZone: tz, 
-    hour12: false,
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
-  
-  // Create a Date object representing the time in the local timezone (via toLocaleString trick)
-  const localDateTime = new Date(utcDate.toLocaleString("en-US", { timeZone: tz }));
-
-  return {
-    localDate,
-    localTime,
-    localDateTime
-  };
-};
-
-/**
- * Get current date and time in user's timezone for form defaults or display
- */
-export const getCurrentLocalDateTime = (timezone?: string) => {
-  const userTimezone = timezone || getUserTimezone();
-  const now = new Date();
-  
-  // Use toLocaleDateString/toLocaleTimeString with the target timezone
-  const date = now.toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
-  const time = now.toLocaleTimeString('en-GB', { 
-    timeZone: userTimezone,
-    hour12: false,
-    hour: '2-digit', 
-    minute: '2-digit' 
-  }); // HH:MM format
-  
-  return {
-    date: date,
-    time: time,
-    timezone: userTimezone,
-    timestamp: now.toISOString() // UTC timestamp
-  };
-};
-
-/**
- * Format local datetime strings for structured display.
- * This function is useful if you already have the date/time in the desired local timezone.
- */
-export const formatDateTimeForDisplay = (date: string, time: string, timezone?: string) => {
-  const userTimezone = timezone || getUserTimezone();
-  // NOTE: This creates a Date object interpreting the string in the system's timezone, 
-  // but uses the Intl methods to format it *as if* it were in the target timezone.
-  const datetime = new Date(`${date}T${time}:00`);
-  
-  return {
-    dateString: datetime.toLocaleDateString('en-US', {
-      weekday: 'short',
+export const convertFromUTC = (utcDate: string, utcTime: string, timezone: string = DEFAULT_TIMEZONE): {
+  localDate: string;
+  localTime: string;
+  localDateTime: Date;
+  formattedDate: string;
+  formattedTime: string;
+} => {
+  try {
+    // Create UTC date string
+    const utcDateTimeStr = `${utcDate}T${utcTime}:00.000Z`;
+    const utcDateObj = new Date(utcDateTimeStr);
+    
+    // Convert to local timezone
+    const localDateTime = new Date(utcDateObj.toLocaleString('en-US', { timeZone: timezone }));
+    
+    // Format local date and time
+    const localYear = localDateTime.getFullYear();
+    const localMonth = String(localDateTime.getMonth() + 1).padStart(2, '0');
+    const localDay = String(localDateTime.getDate()).padStart(2, '0');
+    const localHours = String(localDateTime.getHours()).padStart(2, '0');
+    const localMinutes = String(localDateTime.getMinutes()).padStart(2, '0');
+    
+    const localDate = `${localYear}-${localMonth}-${localDay}`;
+    const localTime = `${localHours}:${localMinutes}`;
+    
+    // Formatted versions
+    const formattedDate = localDateTime.toLocaleDateString('en-US', { 
+      timeZone: timezone,
       year: 'numeric',
-      month: 'short', 
-      day: 'numeric',
-      timeZone: userTimezone
-    }),
-    timeString: datetime.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: userTimezone
-    }),
-    fullString: datetime.toLocaleString('en-US', {
-      weekday: 'short',
-      year: 'numeric', 
       month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: userTimezone
-    })
-  };
-};
-
-// --- Additional Utility Functions from the Older Code ---
-// (These are useful for application logic)
-
-/**
- * Check if a UTC datetime is today in user's timezone
- */
-export const isToday = (utcDate: string, utcTime: string, userTimezone?: string): boolean => {
-  const { localDate } = convertFromUTC(utcDate, utcTime, userTimezone);
-  const today = new Date().toLocaleDateString('en-CA');
-  return localDate === today;
-};
-
-/**
- * Check if a UTC datetime is in the past
- */
-export const isPast = (utcDate: string, utcTime: string): boolean => {
-  const utcDateTime = new Date(`${utcDate}T${utcTime}:00.000Z`);
-  return utcDateTime < new Date();
-};
-
-/**
- * Format UTC datetime for display with custom options and timezone info
- * This function should be used for displaying stored UTC values.
- */
-export const formatDisplayDateTime = (
-  utcDate: string, 
-  utcTime: string, 
-  userTimezone?: string,
-  options?: {
-    showDate?: boolean;
-    showTime?: boolean;
-    showTimezone?: boolean;
-    format12Hour?: boolean;
-  }
-): string => {
-  const { showDate = true, showTime = true, showTimezone = false, format12Hour = false } = options || {};
-  const { localDate, localTime } = convertFromUTC(utcDate, utcTime, userTimezone);
-  const tz = userTimezone || getUserTimezone();
-  
-  let result = '';
-  
-  if (showDate) {
-    // Re-create Date object based on localDate string to use proper formatting for the date part
-    const date = new Date(localDate); 
-    // Format date string from localDate (YYYY-MM-DD)
-    result += new Date(`${localDate}T00:00:00`).toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      timeZone: tz // Use timezone for correct display logic
+      day: 'numeric'
     });
-  }
-  
-  if (showTime) {
-    if (showDate) result += ' at ';
     
-    // Use formatDateTimeForDisplay's logic for time formatting, but need a full datetime object
-    const { timeString } = formatDateTimeForDisplay(localDate, localTime, tz);
+    const formattedTime = localDateTime.toLocaleTimeString('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
     
-    if (format12Hour) {
-      // Use the output of formatDateTimeForDisplay for 12-hour format
-      result += timeString; 
-    } else {
-      // 24-hour format
-      result += localTime;
-    }
+    return {
+      localDate,
+      localTime,
+      localDateTime,
+      formattedDate,
+      formattedTime
+    };
+  } catch (error) {
+    console.error('Error converting from UTC:', error);
+    const now = new Date();
+    return {
+      localDate: now.toISOString().slice(0, 10),
+      localTime: now.toISOString().slice(11, 16),
+      localDateTime: now,
+      formattedDate: now.toLocaleDateString(),
+      formattedTime: now.toLocaleTimeString()
+    };
   }
-  
-  if (showTimezone) {
-    // Using the 'offset' format for clarity in this utility
-    const tzName = getTimezoneDisplayName(tz, 'offset'); 
-    result += ` (${tzName})`;
+};
+
+export const formatTimeForTimezone = (date: Date, timezone: string): string => {
+  try {
+    return date.toLocaleString('en-US', { 
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return date.toLocaleTimeString();
   }
-  
+};
+
+export const formatDateForTimezone = (date: Date, timezone: string): string => {
+  try {
+    return date.toLocaleString('en-US', { 
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return date.toLocaleDateString();
+  }
+};
+
+export const formatDateTimeForTimezone = (date: Date, timezone: string): string => {
+  try {
+    return date.toLocaleString('en-US', { 
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (error) {
+    console.error('Error formatting datetime:', error);
+    return date.toLocaleString();
+  }
+};
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+export const getTimezoneOffset = (timezone: string): string => {
+  try {
+    const now = new Date();
+    const tzString = now.toLocaleString('en-US', { timeZone: timezone });
+    const tzDate = new Date(tzString);
+    const offset = (tzDate.getTime() - now.getTime()) / 3600000;
+    const sign = offset >= 0 ? '+' : '-';
+    const hours = Math.floor(Math.abs(offset));
+    const minutes = Math.round((Math.abs(offset) - hours) * 60);
+    return `UTC${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  } catch {
+    return 'UTC+00:00';
+  }
+};
+
+export const formatTimezoneDisplay = (timezone: string): string => {
+  const offset = getTimezoneOffset(timezone);
+  const city = timezone.split('/')[1]?.replace(/_/g, ' ') || timezone;
+  return `${city} (${offset})`;
+};
+
+export const getCountryByCode = (code: string) => {
+  return COUNTRIES.find(c => c.code === code);
+};
+
+export const getCurrencyByCode = (code: string) => {
+  return CURRENCIES.find(c => c.code === code);
+};
+
+export const getStudentStatusColor = (status: string): string => {
+  const statusObj = STUDENT_STATUS.find(s => s.value === status);
+  return statusObj?.color || 'gray';
+};
+
+export const formatPhoneNumber = (phone: string, countryCode?: string): string => {
+  // Basic phone formatting
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 10) {
+    return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+  }
+  return phone;
+};
+
+export const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+export const calculateAge = (birthDate: string | Date): number => {
+  const birth = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+export const getCurrentTimeInTimezone = (timezone: string): Date => {
+  try {
+    const now = new Date();
+    const timeString = now.toLocaleString('en-US', { timeZone: timezone });
+    return new Date(timeString);
+  } catch (error) {
+    console.error('Error getting current time:', error);
+    return new Date();
+  }
+};
+
+export const getUserTimezone = (): string => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIMEZONE;
+  } catch (error) {
+    console.error('Error getting user timezone:', error);
+    return DEFAULT_TIMEZONE;
+  }
+};
+
+export const getTimezoneDisplayName = (timezone: string): string => {
+  try {
+    const offset = getTimezoneOffset(timezone);
+    const city = timezone.split('/').pop()?.replace(/_/g, ' ') || timezone;
+    return `${city} (${offset})`;
+  } catch (error) {
+    console.error('Error getting timezone display name:', error);
+    return timezone;
+  }
+};
+
+export const getTimezoneAbbreviation = (timezone: string): string => {
+  try {
+    const date = new Date();
+    const parts = date.toLocaleString('en-US', { 
+      timeZone: timezone, 
+      timeZoneName: 'short' 
+    }).split(' ');
+    return parts[parts.length - 1] || 'UTC';
+  } catch (error) {
+    console.error('Error getting timezone abbreviation:', error);
+    return 'UTC';
+  }
+};
+
+export const getCurrentLocalDateTime = (timezone: string = DEFAULT_TIMEZONE): { date: string; time: string; dateTime: string } => {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    const date = `${year}-${month}-${day}`;
+    const time = `${hours}:${minutes}`;
+    const dateTime = `${date}T${time}`;
+    
+    return { date, time, dateTime };
+  } catch (error) {
+    console.error('Error getting current local datetime:', error);
+    const now = new Date();
+    const isoString = now.toISOString();
+    return {
+      date: isoString.slice(0, 10),
+      time: isoString.slice(11, 16),
+      dateTime: isoString.slice(0, 16)
+    };
+  }
+};
+
+export const formatDateTimeLocal = (date: Date | string): string => {
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  } catch (error) {
+    console.error('Error formatting datetime local:', error);
+    return new Date().toISOString().slice(0, 16);
+  }
+};
+
+export const parseDateTimeLocal = (dateTimeLocal: string): Date => {
+  try {
+    return new Date(dateTimeLocal);
+  } catch (error) {
+    console.error('Error parsing datetime local:', error);
+    return new Date();
+  }
+};
+
+export const addMinutes = (date: Date, minutes: number): Date => {
+  return new Date(date.getTime() + minutes * 60000);
+};
+
+export const addHours = (date: Date, hours: number): Date => {
+  return new Date(date.getTime() + hours * 3600000);
+};
+
+export const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
   return result;
 };
 
-/**
- * Validate timezone
- */
-export const isValidTimezone = (timezone: string): boolean => {
+export const isSameDay = (date1: Date, date2: Date): boolean => {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
+};
+
+export const isToday = (date: Date): boolean => {
+  return isSameDay(date, new Date());
+};
+
+export const isFutureDate = (date: Date): boolean => {
+  return date.getTime() > new Date().getTime();
+};
+
+export const isPastDate = (date: Date): boolean => {
+  return date.getTime() < new Date().getTime();
+};
+
+export const getDayName = (date: Date): string => {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return days[date.getDay()];
+};
+
+export const getMonthName = (date: Date): string => {
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                  'July', 'August', 'September', 'October', 'November', 'December'];
+  return months[date.getMonth()];
+};
+
+export const formatDate = (date: Date | string, format: string = 'YYYY-MM-DD'): string => {
   try {
-    Intl.DateTimeFormat(undefined, { timeZone: timezone });
-    return true;
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    
+    switch (format) {
+      case 'YYYY-MM-DD':
+        return `${year}-${month}-${day}`;
+      case 'DD/MM/YYYY':
+        return `${day}/${month}/${year}`;
+      case 'MM/DD/YYYY':
+        return `${month}/${day}/${year}`;
+      case 'DD-MM-YYYY':
+        return `${day}-${month}-${year}`;
+      default:
+        return `${year}-${month}-${day}`;
+    }
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+};
+
+export const formatTime = (date: Date | string, format: '12h' | '24h' = '12h'): string => {
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const hours24 = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    
+    if (format === '24h') {
+      return `${String(hours24).padStart(2, '0')}:${minutes}`;
+    } else {
+      const hours12 = hours24 % 12 || 12;
+      const ampm = hours24 >= 12 ? 'PM' : 'AM';
+      return `${hours12}:${minutes} ${ampm}`;
+    }
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return '';
+  }
+};
+
+export const getWeekNumber = (date: Date): number => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
+export const getDaysBetween = (date1: Date, date2: Date): number => {
+  const oneDay = 24 * 60 * 60 * 1000;
+  return Math.round(Math.abs((date1.getTime() - date2.getTime()) / oneDay));
+};
+
+export const getHoursBetween = (date1: Date, date2: Date): number => {
+  const oneHour = 60 * 60 * 1000;
+  return Math.round(Math.abs((date1.getTime() - date2.getTime()) / oneHour));
+};
+
+export const getMinutesBetween = (date1: Date, date2: Date): number => {
+  const oneMinute = 60 * 1000;
+  return Math.round(Math.abs((date1.getTime() - date2.getTime()) / oneMinute));
+};
+
+export const isTimezoneSame = (tz1: string, tz2: string): boolean => {
+  try {
+    const now = new Date();
+    const offset1 = getTimezoneOffset(tz1);
+    const offset2 = getTimezoneOffset(tz2);
+    return offset1 === offset2;
   } catch {
     return false;
   }
 };
 
-/**
- * Get common timezones for selection
- */
-export const getCommonTimezones = () => [
-  { value: 'Africa/Cairo', label: 'Cairo (UTC+2)' },
-  { value: 'Asia/Riyadh', label: 'Riyadh (UTC+3)' },
-  { value: 'Asia/Dubai', label: 'Dubai (UTC+4)' },
-  { value: 'Asia/Kuwait', label: 'Kuwait (UTC+3)' },
-  { value: 'Asia/Baghdad', label: 'Baghdad (UTC+3)' },
-  { value: 'Europe/London', label: 'London (UTC+0/+1)' },
-  { value: 'Europe/Paris', label: 'Paris (UTC+1/+2)' },
-  { value: 'America/New_York', label: 'New York (UTC-5/-4)' },
-  { value: 'America/Los_Angeles', label: 'Los Angeles (UTC-8/-7)' },
-  { value: 'America/Chicago', label: 'Chicago (UTC-6/-5)' },
-  { value: 'Australia/Sydney', label: 'Sydney (UTC+10/+11)' },
-  { value: 'Asia/Tokyo', label: 'Tokyo (UTC+9)' },
-  { value: 'Asia/Singapore', label: 'Singapore (UTC+8)' },
-];
+// ============================================
+// DEFAULT VALUES
+// ============================================
 
-// Example usage and testing
-export const testTimezoneConversion = () => {
-  console.log('=== Timezone Conversion Test ===');
-  
-  // Test case: Class scheduled for 6 PM Cairo time on Sept 14, 2025
-  const localDate = '2025-09-14';
-  const localTime = '18:00';
-  const cairoTz = 'Africa/Cairo';
-  
-  console.log(`Original: ${localDate} ${localTime} in ${cairoTz}`);
-  
-  // Convert to UTC for storage
-  const { utcDate, utcTime, utcDateTime } = convertToUTC(localDate, localTime, cairoTz);
-  console.log(`Stored in DB (UTC): ${utcDate} ${utcTime}`);
-  
-  // Convert back to different timezones for display
-  const timezones = [
-    { tz: 'Africa/Cairo', name: 'Cairo' },
-    { tz: 'Asia/Riyadh', name: 'Riyadh' },
-    { tz: 'America/New_York', name: 'New York' },
-  ];
-  
-  timezones.forEach(({ tz, name }) => {
-    const { localDate: displayDate, localTime: displayTime } = convertFromUTC(utcDate, utcTime, tz);
-    console.log(`${name}: ${displayDate} ${displayTime}`);
-    console.log(`${name} (Formatted): ${formatDisplayDateTime(utcDate, utcTime, tz, { showTimezone: true, format12Hour: true })}`);
-  });
-
-  console.log(`\nLocal Current Time (${getTimezoneDisplayName(undefined, 'short')}):`, getCurrentLocalDateTime());
-};
+export const DEFAULT_TIMEZONE = 'Asia/Riyadh';
+export const DEFAULT_CURRENCY = 'USD';
+export const DEFAULT_LANGUAGE = 'English';
+export const DEFAULT_LEVEL = 'Beginner';
+export const DEFAULT_STATUS = 'active';
+export const DEFAULT_PAYMENT_MODE = 'PayPal';
+export const DEFAULT_INVOICE_TYPE = 'Monthly';
+export const DEFAULT_INVOICE_CYCLE = '1st of every month';

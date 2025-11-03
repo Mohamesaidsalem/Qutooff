@@ -24,6 +24,8 @@ export interface Child {
   progress: number;
   teacherId: string;
   teacherName: string;
+  courseId?: string; // ✅ Added
+  courseName?: string; // ✅ Added
   nextClass: string;
   parentId: string;
   phone?: string;
@@ -34,6 +36,19 @@ export interface Child {
   studentAccount?: StudentAccount;
   createdAt: string;
   isActive: boolean;
+  
+  status: 'active' | 'suspended' | 'on-hold' | 'inactive';
+  skypeId?: string;
+  gender?: string;
+  language?: string;
+  data?: string;
+  numberOfDays?: string;
+  regularCourse?: string;
+  additionalCourse?: string;
+  remarksForParent?: string;
+  remarksForTeacher?: string;
+ 
+  
 }
 
 export interface Teacher {

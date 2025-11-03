@@ -19,8 +19,10 @@ import AdminDashboard from './components/Dashboards/AdminDashboard';
 import SuperAdminDashboard from './components/Dashboards/SuperAdminDashboard';
 import AdminSectionManager from './components/Dashboards/AdminSectionManager';
 
-// ✅ NEW: Family Management
+// ✅ Family Management & Profiles
 import FamilyManagement from './components/FamilyManagement/FamilyManagement';
+
+import StudentProfile from './components/Students/StudentProfile'; // ✅ Added
 
 // Public Pages
 import CoursesPage from './components/CoursesPage';
@@ -34,6 +36,7 @@ import AdvanceClassScheduler from './components/Modals/Weekly Classes/AdvanceCla
 import PublicHolidaysManager from './components/Modals/Weekly Classes/PublicHolidaysManager';
 import SalaryClassReport from './components/Modals/Weekly Classes/SalaryClassReport';
 import DailyClassReport from './components/Modals/Weekly Classes/DailyClassReport';
+import ParentProfile from './components/Modals/Parent/ParentProfile';
 
 interface CustomUser {
   role: 'parent' | 'teacher' | 'student' | 'admin' | 'super_admin' | string;
@@ -47,12 +50,12 @@ function LandingPage({ onShowLogin }: { onShowLogin: () => void }) {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <main className="max-w-7xl mx-auto px-1 sm:px-6 lg:px-8 py-12">
       <div className="mb-12">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-4">Welcome to Quraan Academy</h1>
-        <p className="text-xl text-gray-600">
+        {/* <h1 className="text-4xl font-extrabold text-gray-900 mb-4">Welcome to Quraan Academy</h1> */}
+        {/* <p className="text-xl text-gray-600">
           Your journey to learning the Quran starts here.
-        </p>
+        </p> */}
       </div>
       <Hero onGetStarted={onShowLogin} />
       <CoursesTabs />
@@ -76,7 +79,6 @@ function AppContent() {
     );
   }
 
-  // ✅ Better Dashboard Router
   const getDashboardComponent = () => {
     if (!user || !user.role) {
       console.log('❌ No user or role found');
@@ -112,10 +114,7 @@ function AppContent() {
 
   const handleShowLogin = () => setShowLogin(true);
 
-  // ✅ Check if user is Admin or Super Admin
   const isAdminOrSuperAdmin = user && (user.role === 'admin' || user.role === 'super_admin');
-  
-  // ✅ Check if user is Parent
   const isParent = user && user.role === 'parent';
 
   return (
@@ -123,7 +122,7 @@ function AppContent() {
       <Header onShowLogin={handleShowLogin} /> 
       
       <Routes>
-        {/* ✅ Main Route - Show Dashboard if logged in, Landing Page if not */}
+        {/* Main Route */}
         <Route 
           path="/" 
           element={
@@ -138,15 +137,17 @@ function AppContent() {
         <Route path="/free-trial" element={<FreeTrial />} />
         <Route path="/demo" element={<DropdownDemo />} />
         
-        {/* Protected Routes - Require Login */}
+        {/* Protected Routes */}
         <Route 
           path="/classes" 
           element={user ? <ClassManagement /> : <Navigate to="/" replace />} 
         />
         
-        {/* ✅ NEW: Family Management Routes */}
+        {/* ============================================ */}
+        {/* FAMILY MANAGEMENT ROUTES */}
+        {/* ============================================ */}
         
-        {/* Admin & Super Admin Family Management */}
+        {/* Admin Family Management */}
         <Route 
           path="/admin/families" 
           element={isAdminOrSuperAdmin ? <FamilyManagement /> : <Navigate to="/" replace />} 
@@ -158,7 +159,21 @@ function AppContent() {
           element={isParent ? <FamilyManagement /> : <Navigate to="/" replace />} 
         />
         
+        {/* Parent Profile Page */}
+        <Route 
+          path="/admin/parent/:parentId" 
+          element={isAdminOrSuperAdmin ? <ParentProfile /> : <Navigate to="/" replace />} 
+        />
+
+        {/* ✅ Student Profile Page */}
+        <Route 
+          path="/admin/student/:studentId" 
+          element={isAdminOrSuperAdmin ? <StudentProfile /> : <Navigate to="/" replace />} 
+        />
+        
+        {/* ============================================ */}
         {/* Admin & Super Admin Only Routes */}
+        {/* ============================================ */}
         <Route 
           path="/admin-sections" 
           element={isAdminOrSuperAdmin ? <AdminSectionManager /> : <Navigate to="/" replace />} 
@@ -189,7 +204,7 @@ function AppContent() {
           element={isAdminOrSuperAdmin ? <DailyClassReport /> : <Navigate to="/" replace />} 
         />
 
-        {/* Catch all - redirect to home */}
+        {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       

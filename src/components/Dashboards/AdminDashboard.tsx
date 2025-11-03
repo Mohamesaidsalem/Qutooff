@@ -1,11 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Users, BookOpen, DollarSign, TrendingUp, Calendar as CalendarIcon, BarChart, Home, Settings, UserPlus, GraduationCap, CreditCard, CheckCircle, Clock, ClipboardList, ChevronDown, Globe, Briefcase, Calendar, Menu, X, ChevronsLeft, ChevronsRight, AlertCircle, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Users, BookOpen, DollarSign, TrendingUp, 
+  Calendar as CalendarIcon, Home, Settings, 
+  UserPlus, GraduationCap, CreditCard, 
+  Clock, ClipboardList, Globe, 
+  Briefcase, Calendar, Menu, AlertCircle, Trash2, 
+  CheckCircle
+} from 'lucide-react';
 import { ref, onValue, off, push, set, update, remove } from 'firebase/database';
 import { database } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
-import { useData, Teacher } from '../../contexts/DataContext'; 
-import { migrateChildrenToFamilies, validateMigration, rollbackMigration } from '../../utils/migrateFamilies';
+import { useNavigate } from 'react-router-dom';
 
+// Import Components
+import AdminSidebar from '../Layout/AdminSidebar';
 import UserManagement from '../admin/UserManagement';
 import CourseManagement from '../admin/CourseManagement';
 import SubscriptionManagement from '../admin/SubscriptionManagement';
@@ -17,61 +25,96 @@ import TeacherStudents from '../teacher/TeacherStudents';
 import AnalyticsDashboard from '../admin/AnalyticsDashboard';
 import FamilyManagement from '../FamilyManagement/FamilyManagement';
 
+// Migration utilities
+import { 
+  migrateChildrenToFamilies, 
+  validateMigration, 
+  rollbackMigration 
+} from '../../utils/migrateFamilies';
+
+// ============================================
+// INTERFACES
+// ============================================
+interface Teacher {
+  id: string;
+  name: string;
+  email: string;
+  isActive?: boolean;
+}
+
+interface Child {
+  id: string;
+  name: string;
+  parentEmail: string;
+  teacherId?: string;
+  teacherName?: string;
+  isActive?: boolean;
+}
+
+interface Course {
+  id: string;
+  name: string;
+  duration: string;
+  price: number;
+}
+
+interface ClassData {
+  id: string;
+  studentId?: string;
+  teacherId?: string;
+  appointmentDate?: string;
+  status?: string;
+  createdAt?: string;
+}
+
+// ============================================
+// TABS CONFIGURATION
+// ============================================
 const tabs = [
-    { id: 'overview', name: 'Dashboard Overview', icon: Home, shortName: 'Overview' },
-    { id: 'daily-classes', name: 'Daily Classes', icon: ClipboardList, shortName: 'Classes' },
-    { id: 'users', name: 'User Management', icon: UserPlus, shortName: 'Users' },
-    { id: 'teachers', name: 'Teacher Schedules', icon: GraduationCap, shortName: 'Schedules' },
-    { id: 'courses', name: 'Course Management', icon: BookOpen, shortName: 'Courses' },
-    { id: 'subscriptions', name: 'Subscriptions & Payments', icon: CreditCard, shortName: 'Payments' },
-    { id: 'analytics', name: 'Analytics', icon: BarChart, shortName: 'Analytics' },
-    { id: 'settings', name: 'Settings', icon: Settings, shortName: 'Settings' },
-    { id: 'teacher-management', name: 'Teacher Management', icon: Users, shortName: 'Teachers' },
-    { id: 'families', name: 'Family Management', icon: Users, shortName: 'Families' },
-    { id: 'teacher-students', name: 'View Teacher Students', icon: Users, shortName: 'Students' }
+  { id: 'overview', name: 'Dashboard Overview' },
+  { id: 'daily-classes', name: 'Daily Classes' },
+  { id: 'families', name: 'Family Management' },
+  { id: 'users', name: 'User Management' },
+  { id: 'teachers', name: 'Teacher Schedules' },
+  { id: 'teacher-management', name: 'Teacher Management' },
+  { id: 'teacher-students', name: 'View Teacher Students' },
+  { id: 'courses', name: 'Course Management' },
+  { id: 'subscriptions', name: 'Subscriptions & Payments' },
+  { id: 'analytics', name: 'Analytics' },
+  { id: 'settings', name: 'Settings' }
 ];
 
-const optionsMenuItems = [
-    { label: 'Add New Employee', icon: UserPlus },
-    { label: 'Add New Family', icon: Users },
-    { label: 'Add New Country', icon: Globe },
-    { label: 'Add New Task', icon: ClipboardList },
-    { label: 'Add New Vendor', icon: Briefcase },
-    { label: 'Add New Year', icon: Calendar },
-];
-
+// ============================================
+// MAIN COMPONENT
+// ============================================
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  
+  // ============================================
+  // STATE MANAGEMENT
+  // ============================================
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
-  const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   
-  const [children, setChildren] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [classes, setClasses] = useState<any[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [dailyClasses, setDailyClasses] = useState<any[]>([]);
+  // Data State
+  const [children, setChildren] = useState<Child[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [dailyClasses, setDailyClasses] = useState<ClassData[]>([]);
 
-  // ✅ Migration State
+  // Migration State
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<any>(null);
 
-  // ✅ Click outside handler for dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowOptionsDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // ✅ IMPROVED: Main data loading with proper error handling
+  // ============================================
+  // FIREBASE DATA LOADING
+  // ============================================
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -79,14 +122,13 @@ export default function AdminDashboard() {
     }
 
     console.log('🔥 AdminDashboard - Starting Firebase data load...');
+    setError(null);
 
-    // ✅ Safety timeout - force loading to stop after 8 seconds
     const loadingTimeout = setTimeout(() => {
       console.log('⏰ Safety timeout reached - forcing loading to false');
       setLoading(false);
-    }, 8000);
+    }, 10000);
 
-    // Track which data sources have loaded
     const dataStatus = {
       children: false,
       teachers: false,
@@ -95,7 +137,6 @@ export default function AdminDashboard() {
       dailyClasses: false
     };
 
-    // Check if all data is loaded
     const checkAllLoaded = () => {
       const allLoaded = Object.values(dataStatus).every(v => v === true);
       if (allLoaded) {
@@ -110,15 +151,20 @@ export default function AdminDashboard() {
     const unsubChildren = onValue(
       childrenRef,
       (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-          const activeChildren = arr.filter(child => child.isActive !== false);
-          setChildren(activeChildren);
-          console.log('✅ Children loaded:', activeChildren.length);
-        } else {
+        try {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+            const activeChildren = arr.filter(child => child.isActive !== false);
+            setChildren(activeChildren);
+            console.log('✅ Children loaded:', activeChildren.length);
+          } else {
+            setChildren([]);
+            console.log('ℹ️ No children data');
+          }
+        } catch (err) {
+          console.error('❌ Error processing children:', err);
           setChildren([]);
-          console.log('ℹ️ No children data');
         }
         dataStatus.children = true;
         checkAllLoaded();
@@ -136,15 +182,20 @@ export default function AdminDashboard() {
     const unsubTeachers = onValue(
       teachersRef,
       (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-          const activeTeachers = arr.filter(t => t.isActive !== false);
-          setTeachers(activeTeachers);
-          console.log('✅ Teachers loaded:', activeTeachers.length);
-        } else {
+        try {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+            const activeTeachers = arr.filter(t => t.isActive !== false);
+            setTeachers(activeTeachers);
+            console.log('✅ Teachers loaded:', activeTeachers.length);
+          } else {
+            setTeachers([]);
+            console.log('ℹ️ No teachers data');
+          }
+        } catch (err) {
+          console.error('❌ Error processing teachers:', err);
           setTeachers([]);
-          console.log('ℹ️ No teachers data');
         }
         dataStatus.teachers = true;
         checkAllLoaded();
@@ -162,14 +213,19 @@ export default function AdminDashboard() {
     const unsubClasses = onValue(
       classesRef,
       (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-          setClasses(arr);
-          console.log('✅ Classes loaded:', arr.length);
-        } else {
+        try {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+            setClasses(arr);
+            console.log('✅ Classes loaded:', arr.length);
+          } else {
+            setClasses([]);
+            console.log('ℹ️ No classes data');
+          }
+        } catch (err) {
+          console.error('❌ Error processing classes:', err);
           setClasses([]);
-          console.log('ℹ️ No classes data');
         }
         dataStatus.classes = true;
         checkAllLoaded();
@@ -187,14 +243,19 @@ export default function AdminDashboard() {
     const unsubCourses = onValue(
       coursesRef,
       (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-          setCourses(arr);
-          console.log('✅ Courses loaded:', arr.length);
-        } else {
+        try {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+            setCourses(arr);
+            console.log('✅ Courses loaded:', arr.length);
+          } else {
+            setCourses([]);
+            console.log('ℹ️ No courses data');
+          }
+        } catch (err) {
+          console.error('❌ Error processing courses:', err);
           setCourses([]);
-          console.log('ℹ️ No courses data');
         }
         dataStatus.courses = true;
         checkAllLoaded();
@@ -207,33 +268,36 @@ export default function AdminDashboard() {
       }
     );
 
-    // ============ DAILY CLASSES (with error handling) ============
+    // ============ DAILY CLASSES ============
     const dailyClassesRef = ref(database, 'daily_classes');
     const unsubDailyClasses = onValue(
       dailyClassesRef,
       (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-          setDailyClasses(arr);
-          console.log('✅ Daily Classes loaded:', arr.length);
-        } else {
+        try {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const arr = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+            setDailyClasses(arr);
+            console.log('✅ Daily Classes loaded:', arr.length);
+          } else {
+            setDailyClasses([]);
+            console.log('ℹ️ No daily classes data');
+          }
+        } catch (err) {
+          console.error('❌ Error processing daily classes:', err);
           setDailyClasses([]);
-          console.log('ℹ️ No daily classes data');
         }
         dataStatus.dailyClasses = true;
         checkAllLoaded();
       },
       (error) => {
-        // ✅ Handle permission errors gracefully
-        console.warn('⚠️ Daily classes not accessible (continuing without them):', error.message);
+        console.warn('⚠️ Daily classes not accessible:', error.message);
         setDailyClasses([]);
-        dataStatus.dailyClasses = true; // Mark as loaded even with error
+        dataStatus.dailyClasses = true;
         checkAllLoaded();
       }
     );
 
-    // Cleanup function
     return () => {
       clearTimeout(loadingTimeout);
       off(childrenRef, 'value', unsubChildren);
@@ -245,18 +309,9 @@ export default function AdminDashboard() {
     };
   }, [user]);
 
-  // ✅ Additional safety: Force loading off after component mount
-  useEffect(() => {
-    const mountTimeout = setTimeout(() => {
-      if (loading) {
-        console.log('🚨 Emergency timeout - forcing loading to false');
-        setLoading(false);
-      }
-    }, 10000);
-
-    return () => clearTimeout(mountTimeout);
-  }, []);
-
+  // ============================================
+  // CLASS MANAGEMENT HANDLERS
+  // ============================================
   const handleScheduleClass = async (classData: any) => {
     try {
       const classesRef = ref(database, 'classes');
@@ -319,26 +374,9 @@ export default function AdminDashboard() {
       alert('Error deleting class. Please try again.');
     }
   };
-  
-  const calculateEnhancedStats = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return {
-      totalStudents: children.length,
-      activeTeachers: teachers.length,
-      totalRevenue: children.length * 60,
-      classesThisMonth: classes.length,
-      todayClasses: dailyClasses.filter(cls => cls.appointmentDate === today).length,
-      taken: dailyClasses.filter(cls => cls.status === 'taken').length,
-      remaining: dailyClasses.filter(cls => cls.status === 'scheduled').length,
-      running: dailyClasses.filter(cls => cls.status === 'running').length,
-      absent: dailyClasses.filter(cls => cls.status === 'absent').length,
-      rescheduled: dailyClasses.filter(cls => cls.status === 'rescheduled').length,
-      totalClasses: dailyClasses.length
-    };
-  };
 
   // ============================================
-  // ✅ MIGRATION HANDLERS
+  // MIGRATION HANDLERS
   // ============================================
   const handleMigration = async () => {
     if (!window.confirm('⚠️ This will create families from existing children.\n\nDo you want to continue?')) {
@@ -384,8 +422,7 @@ export default function AdminDashboard() {
         alert(`✅ Validation Passed!\n\n` +
               `Children: ${result.stats.totalChildren}\n` +
               `Families: ${result.stats.totalFamilies}\n` +
-              `Orphaned Children: ${result.stats.childrenWithoutFamily}\n` +
-              
+              `Orphaned Children: ${result.stats.childrenWithoutFamily}\n\n` +
               `No critical issues found.`);
       } else {
         const issuesText = result.issues.join('\n• ');
@@ -418,6 +455,26 @@ export default function AdminDashboard() {
     }
   };
 
+  // ============================================
+  // STATISTICS CALCULATION
+  // ============================================
+  const calculateEnhancedStats = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return {
+      totalStudents: children.length,
+      activeTeachers: teachers.length,
+      totalRevenue: children.length * 60,
+      classesThisMonth: classes.length,
+      todayClasses: dailyClasses.filter(cls => cls.appointmentDate === today).length,
+      taken: dailyClasses.filter(cls => cls.status === 'taken').length,
+      remaining: dailyClasses.filter(cls => cls.status === 'scheduled').length,
+      running: dailyClasses.filter(cls => cls.status === 'running').length,
+      absent: dailyClasses.filter(cls => cls.status === 'absent').length,
+      rescheduled: dailyClasses.filter(cls => cls.status === 'rescheduled').length,
+      totalClasses: dailyClasses.length
+    };
+  };
+
   const enhancedStats = calculateEnhancedStats();
 
   const stats = [
@@ -436,198 +493,119 @@ export default function AdminDashboard() {
     { name: 'Rescheduled', value: enhancedStats.rescheduled, color: 'bg-purple-500' }
   ];
 
-  // ✅ Loading Screen
+  // ============================================
+  // LOADING & ERROR STATES
+  // ============================================
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-6 text-gray-600 text-lg font-medium">Loading Admin Dashboard...</p>
-          <p className="mt-2 text-gray-400 text-sm">Fetching data from Firebase</p>
+          <div className="relative">
+            <div className="animate-spin rounded-full h-20 w-20 border-b-4 border-blue-600 mx-auto"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Home className="h-8 w-8 text-blue-600" />
+            </div>
+          </div>
+          <p className="mt-6 text-gray-700 text-lg font-semibold">Loading Admin Dashboard...</p>
+          <p className="mt-2 text-gray-500 text-sm">Fetching data from Firebase</p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full border-2 border-red-200">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">Error Loading Dashboard</h2>
+          <p className="text-gray-600 text-center mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-semibold"
+          >
+            Reload Dashboard
+          </button>
         </div>
       </div>
     );
   }
 
   const activeTabName = tabs.find(tab => tab.id === activeTab)?.name || 'Dashboard';
-  const sidebarWidthClass = isSidebarCollapsed ? 'w-16 sm:w-20' : 'w-64 sm:w-72';
 
+  // ============================================
+  // MAIN RENDER
+  // ============================================
   return (
     <div className="min-h-screen flex bg-gray-50 sm:bg-gray-100">
+      
       {/* ============================================ */}
-      {/* SIDEBAR */}
+      {/* SIDEBAR COMPONENT */}
       {/* ============================================ */}
-      <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0 transition-all duration-300 ease-in-out z-30 ${sidebarWidthClass} bg-white border-r border-gray-200 flex flex-col shadow-xl`}>
-        {/* Sidebar Header */}
-        <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-blue-100 h-14 sm:h-16 border-b border-blue-200`}>
-          {!isSidebarCollapsed && (
-            <h2 className="text-lg sm:text-xl font-bold text-blue-600 whitespace-nowrap truncate">
-              Qutooff Admin
-            </h2>
-          )}
-          {isSidebarCollapsed && <Home className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />}
-          <button 
-            className="lg:hidden text-gray-400 hover:text-gray-600 p-1" 
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <X className="h-5 w-5 sm:h-6 sm:w-6" />
-          </button>
-        </div>
+      <AdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        isSidebarCollapsed={isSidebarCollapsed}
+        setIsSidebarCollapsed={setIsSidebarCollapsed}
+      />
+
+      {/* ============================================ */}
+      {/* MAIN CONTENT */}
+      {/* ============================================ */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         
-        {/* Sidebar Navigation */}
-        <nav className="flex-1 px-1 sm:px-2 py-2 sm:py-4 space-y-0.5 sm:space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
-          {tabs.map((tab) => (
-            <a
-              key={tab.id}
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                setActiveTab(tab.id);
-                setIsSidebarOpen(false);
-              }}
-              className={`flex items-center px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium rounded-lg transition-all group relative ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-md scale-105'
-                  : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:scale-102'
-              } ${isSidebarCollapsed ? 'justify-center' : 'justify-start'}`}
-            >
-              <tab.icon className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isSidebarCollapsed ? 'mr-0' : 'mr-2 sm:mr-3'} transition-colors ${activeTab === tab.id ? 'text-white' : 'text-gray-500 group-hover:text-blue-600'}`} />
-              {!isSidebarCollapsed && (
-                <>
-                  <span className="whitespace-nowrap truncate hidden sm:inline">{tab.name}</span>
-                  <span className="whitespace-nowrap truncate sm:hidden">{tab.shortName}</span>
-                </>
-              )}
-              {isSidebarCollapsed && (
-                <span className="absolute left-full ml-2 sm:ml-3 px-2 sm:px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-40">
-                  {tab.name}
-                </span>
-              )}
-            </a>
-          ))}
-        </nav>
-
-        {/* Sidebar Footer - Collapse Button */}
-        <div className="p-2 sm:p-4 border-t border-gray-200 hidden lg:block">
-          <button 
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
-            className="w-full flex items-center justify-center p-2 text-gray-600 hover:bg-gray-200 hover:text-blue-600 rounded-lg transition-colors text-xs sm:text-sm"
-          >
-            {isSidebarCollapsed ? (
-              <ChevronsRight className="h-4 w-4 sm:h-5 sm:w-5" />
-            ) : (
-              <>
-                <ChevronsLeft className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                <span className="hidden sm:inline">Collapse</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* ============================================ */}
-      {/* MAIN CONTENT AREA */}
-      {/* ============================================ */}
-      <div className="flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out min-w-0">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b z-20 sticky top-0">
-          <div className="max-w-full mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-3 sm:py-4 flex justify-between items-center gap-2 sm:gap-4">
+        {/* <header className="bg-white shadow-sm border-b z-20 sticky top-0">
+          <div className="max-w-full mx-auto px-4 lg:px-6 py-4 flex justify-between items-center gap-4">
             <div className="flex items-center min-w-0 flex-1">
               <button 
-                className="hidden lg:block text-gray-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0" 
-                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              >
-                {isSidebarCollapsed ? <Menu className="h-5 w-5 sm:h-6 sm:w-6" /> : <ChevronsLeft className="h-5 w-5 sm:h-6 sm:w-6" />}
-              </button>
-              <button 
-                className="lg:hidden text-gray-500 hover:text-gray-900 mr-2 sm:mr-4 flex-shrink-0" 
+                className="lg:hidden text-gray-500 hover:text-gray-900 mr-4" 
                 onClick={() => setIsSidebarOpen(true)}
               >
-                <Menu className="h-5 w-5 sm:h-6 sm:w-6" />
+                <Menu className="h-6 w-6" />
               </button>
-              <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900 ml-1 sm:ml-2 truncate">
+              <h1 className="text-lg lg:text-xl font-bold text-gray-900 truncate">
                 {activeTabName}
               </h1>
             </div>
-            
-            {/* Options Dropdown */}
-            <div className="relative flex-shrink-0" ref={dropdownRef}>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowOptionsDropdown(!showOptionsDropdown);
-                }}
-                className={`py-1.5 sm:py-2 px-2 sm:px-3 text-xs sm:text-sm font-medium flex items-center rounded-lg transition-colors border border-gray-300 ${
-                  showOptionsDropdown ? 'bg-blue-50 text-blue-600 border-blue-400' : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-                type="button"
-              >
-                <span className="hidden sm:inline">Options</span>
-                <span className="sm:hidden">⚙️</span>
-                <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 ml-0.5 sm:ml-1 transition-transform ${showOptionsDropdown ? 'rotate-180 text-blue-600' : ''}`} />
-              </button>
-
-              {showOptionsDropdown && (
-                <>
-                  <div className="fixed inset-0 z-[998]" onClick={() => setShowOptionsDropdown(false)}></div>
-                  <div className="absolute top-full right-0 mt-2 w-56 sm:w-64 bg-white rounded-lg shadow-2xl border border-gray-200 py-2 z-[999]">
-                    <div className="px-3 sm:px-4 py-2 border-b border-gray-100 mb-1">
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase">Quick Actions</h3>
-                    </div>
-                    {optionsMenuItems.map((item, index) => (
-                      <button
-                        key={index}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowOptionsDropdown(false);
-                          console.log(`Clicked: ${item.label}`);
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 flex items-center transition-colors group"
-                        type="button"
-                      >
-                        <item.icon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 text-gray-400 group-hover:text-blue-500 flex-shrink-0" />
-                        <span className="group-hover:font-medium truncate">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
           </div>
-        </header>
+        </header> */}
 
-        {/* ============================================ */}
-        {/* MAIN CONTENT */}
-        {/* ============================================ */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 lg:px-6 py-6">
           
           {/* ============================================ */}
-          {/* OVERVIEW TAB (بدون Migration Tools) */}
+          {/* OVERVIEW TAB */}
           {/* ============================================ */}
           {activeTab === 'overview' && (
-            <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+            <div className="space-y-6">
               
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                 {stats.map((item) => (
-                  <div key={item.name} className="bg-white overflow-hidden shadow-md rounded-xl border border-gray-200 hover:shadow-lg transition-shadow">
-                    <div className="p-4 sm:p-5 lg:p-6">
+                  <div key={item.name} className="bg-white overflow-hidden shadow-lg rounded-xl border hover:shadow-xl transition-shadow">
+                    <div className="p-6">
                       <div className="flex items-center">
                         <div className="flex-shrink-0">
-                          <div className={`p-2 sm:p-3 rounded-xl ${item.color}`}>
-                            <item.icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                          <div className={`p-3 rounded-xl ${item.color}`}>
+                            <item.icon className="h-6 w-6 text-white" />
                           </div>
                         </div>
-                        <div className="ml-3 sm:ml-4 lg:ml-5 w-0 flex-1 min-w-0">
+                        <div className="ml-5 w-0 flex-1">
                           <dl>
-                            <dt className="text-xs sm:text-sm font-medium text-gray-500 truncate">{item.name}</dt>
-                            <dd className="flex items-baseline flex-wrap gap-1">
-                              <div className="text-xl sm:text-2xl font-semibold text-gray-900">{item.value}</div>
-                              <div className="flex items-baseline text-xs sm:text-sm font-semibold text-green-600">
-                                <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 self-center text-green-500" />
-                                <span className="ml-0.5 sm:ml-1">{item.change}</span>
+                            <dt className="text-sm font-medium text-gray-500 truncate">{item.name}</dt>
+                            <dd className="flex items-baseline">
+                              <div className="text-2xl font-bold text-gray-900">{item.value}</div>
+                              <div className="ml-2 flex items-baseline text-sm font-semibold text-green-600">
+                                <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
+                                {item.change}
                               </div>
                             </dd>
                           </dl>
@@ -639,82 +617,57 @@ export default function AdminDashboard() {
               </div>
 
               {/* Daily Classes Summary */}
-              <div className="bg-white rounded-xl shadow-md border p-4 sm:p-5 lg:p-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">
-                    📅 Daily Classes Summary
-                  </h3>
+              <div className="bg-white rounded-xl shadow-lg border p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-bold text-gray-900">📅 Daily Classes Summary</h3>
                   <button 
                     onClick={() => setActiveTab('daily-classes')} 
-                    className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm font-medium hover:underline"
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline"
                   >
                     View Details →
                   </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                   {dailyStats.map((stat) => (
                     <div key={stat.name} className="text-center">
-                      <div className={`p-2 sm:p-3 rounded-xl ${stat.color} text-white mx-auto w-fit mb-2`}>
-                        <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+                      <div className={`p-3 rounded-xl ${stat.color} text-white mx-auto w-fit mb-2`}>
+                        <Clock className="h-6 w-6" />
                       </div>
-                      <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                        {stat.value}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-500 truncate">
-                        {stat.name}
-                      </div>
+                      <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
+                      <div className="text-sm text-gray-500">{stat.name}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Quick Actions */}
-              <div className="bg-white rounded-xl shadow-md border p-4 sm:p-5 lg:p-6">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-                  ⚡ Quick Actions
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-                  <button 
-                    onClick={() => setActiveTab('daily-classes')} 
-                    className="flex flex-col items-center p-3 sm:p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-all hover:shadow-md border border-indigo-100"
-                  >
-                    <ClipboardList className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-indigo-600 mb-2" />
-                    <span className="text-xs sm:text-sm font-medium text-indigo-900 text-center">Daily Classes</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('users')} 
-                    className="flex flex-col items-center p-3 sm:p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-all hover:shadow-md border border-blue-100"
-                  >
-                    <UserPlus className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-blue-600 mb-2" />
-                    <span className="text-xs sm:text-sm font-medium text-blue-900 text-center">Create Account</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('teachers')} 
-                    className="flex flex-col items-center p-3 sm:p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-all hover:shadow-md border border-green-100"
-                  >
-                    <GraduationCap className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-green-600 mb-2" />
-                    <span className="text-xs sm:text-sm font-medium text-green-900 text-center">Manage Teachers</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('courses')} 
-                    className="flex flex-col items-center p-3 sm:p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-all hover:shadow-md border border-purple-100"
-                  >
-                    <BookOpen className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-purple-600 mb-2" />
-                    <span className="text-xs sm:text-sm font-medium text-purple-900 text-center">Create Course</span>
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('subscriptions')} 
-                    className="flex flex-col items-center p-3 sm:p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition-all hover:shadow-md col-span-2 sm:col-span-1 border border-emerald-100"
-                  >
-                    <CreditCard className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-emerald-600 mb-2" />
-                    <span className="text-xs sm:text-sm font-medium text-emerald-900 text-center">View Payments</span>
-                  </button>
+              <div className="bg-white rounded-xl shadow-lg border p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">⚡ Quick Actions</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {[
+                    { tab: 'daily-classes', icon: ClipboardList, label: 'Daily Classes', color: 'indigo' },
+                    { tab: 'users', icon: UserPlus, label: 'Create Account', color: 'blue' },
+                    { tab: 'teachers', icon: GraduationCap, label: 'Manage Teachers', color: 'green' },
+                    { tab: 'courses', icon: BookOpen, label: 'Create Course', color: 'purple' },
+                    { tab: 'subscriptions', icon: CreditCard, label: 'View Payments', color: 'emerald' }
+                  ].map((action) => (
+                    <button 
+                      key={action.tab}
+                      onClick={() => setActiveTab(action.tab)} 
+                      className={`flex flex-col items-center p-4 bg-${action.color}-50 rounded-xl hover:bg-${action.color}-100 transition-all hover:shadow-md border border-${action.color}-100`}
+                    >
+                      <action.icon className={`h-8 w-8 text-${action.color}-600 mb-2`} />
+                      <span className={`text-sm font-medium text-${action.color}-900 text-center`}>{action.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
           )}
 
+          {/* ============================================ */}
           {/* OTHER TABS */}
+          {/* ============================================ */}
           {activeTab === 'daily-classes' && (
             <DailyClassesManagement 
               teachers={teachers}
@@ -724,8 +677,14 @@ export default function AdminDashboard() {
             />
           )}
           
-          {activeTab === 'teacher-management' && <AdminTeacherManagement />}
-          {activeTab === 'families' && <FamilyManagement />}
+          {activeTab === 'families' && (
+            <>
+              {React.createElement(FamilyManagement as any, {
+                onViewProfile: (parentId: string) => navigate(`/admin/parent/${parentId}`)
+              })}
+            </>
+          )}
+          
           {activeTab === 'users' && <UserManagement />}
           
           {activeTab === 'teachers' && (
@@ -739,33 +698,21 @@ export default function AdminDashboard() {
             />
           )}
 
-          {activeTab === 'courses' && <CourseManagement />}
+          {activeTab === 'teacher-management' && <AdminTeacherManagement />}
 
-          {activeTab === 'subscriptions' && (
-            <SubscriptionManagement 
-              children={children}
-              courses={courses}
-            />
-          )}
-          
-          {/* Teacher Students View */}
           {activeTab === 'teacher-students' && (
-            <div className="space-y-4 sm:space-y-6">
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">
-                👨‍🏫 View Teacher Students
-              </h2>
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900">👨‍🏫 View Teacher Students</h2>
               
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-md border border-gray-200">
-                <label className="text-gray-700 font-medium whitespace-nowrap text-sm sm:text-base">
-                  Select Teacher:
-                </label>
+              <div className="flex items-center gap-4 bg-white p-4 rounded-xl shadow-md border">
+                <label className="text-gray-700 font-medium whitespace-nowrap">Select Teacher:</label>
                 <select
                   value={selectedTeacherId}
                   onChange={(e) => setSelectedTeacherId(e.target.value)}
-                  className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">--- Choose a Teacher ---</option>
-                  {teachers.map((teacher: Teacher) => (
+                  {teachers.map((teacher) => (
                     <option key={teacher.id} value={teacher.id}>
                       {teacher.name} ({teacher.email})
                     </option>
@@ -776,9 +723,9 @@ export default function AdminDashboard() {
               {selectedTeacherId ? (
                 <TeacherStudents teacherId={selectedTeacherId} />
               ) : (
-                <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 lg:p-10 text-center border-2 border-dashed border-gray-300">
-                  <Users className='h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mx-auto mb-3 sm:mb-4'/>
-                  <p className='text-sm sm:text-base lg:text-lg font-medium text-gray-600'>
+                <div className="bg-white rounded-xl shadow-lg p-10 text-center border-2 border-dashed border-gray-300">
+                  <Users className='h-16 w-16 text-gray-400 mx-auto mb-4'/>
+                  <p className='text-lg font-medium text-gray-600'>
                     Please select a teacher to view their student list and performance.
                   </p>
                 </div>
@@ -786,38 +733,41 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {activeTab === 'courses' && <CourseManagement />}
+
+          {activeTab === 'subscriptions' && (
+            <SubscriptionManagement 
+              children={children}
+              courses={courses}
+            />
+          )}
+
           {activeTab === 'analytics' && <AnalyticsDashboard />}
 
           {/* ============================================ */}
-          {/* SETTINGS TAB (مع Migration Tools) */}
+          {/* SETTINGS TAB */}
           {/* ============================================ */}
           {activeTab === 'settings' && (
-            <div className="space-y-4 sm:space-y-6">
+            <div className="space-y-6">
               
-              {/* ============================================ */}
-              {/* 🏠 FAMILY MIGRATION TOOLS */}
-              {/* ============================================ */}
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-purple-200">
-                <div className="flex items-center gap-3 mb-4 sm:mb-6">
-                  <div className="bg-purple-600 p-2 sm:p-3 rounded-xl flex-shrink-0">
-                    <Home className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              {/* Family Migration Tools */}
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl shadow-xl p-6 border-2 border-purple-200">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-purple-600 p-3 rounded-xl">
+                    <Home className="h-6 w-6 text-white" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
-                      🏠 Family Migration Tools
-                    </h2>
-                    <p className="text-xs sm:text-sm text-gray-600">
-                      One-time migration to organize existing children into family groups
-                    </p>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">🏠 Family Migration Tools</h2>
+                    <p className="text-sm text-gray-600">One-time migration to organize existing children into family groups</p>
                   </div>
                 </div>
 
-                {/* Warning Banner */}
-                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-3 sm:p-4 mb-4 flex items-start gap-3">
+                {/* Warning */}
+                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 mb-6 flex items-start gap-3">
                   <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-yellow-900 text-sm mb-1">⚠️ Advanced Feature</h4>
-                    <p className="text-xs sm:text-sm text-yellow-800">
+                  <div>
+                    <h4 className="font-semibold text-yellow-900 mb-1">⚠️ Advanced Feature</h4>
+                    <p className="text-sm text-yellow-800">
                       These tools are for migrating existing data. Only use if you have children without families.
                       <br />
                       <strong>Tip:</strong> Click "Validate Data" first to check if migration is needed.
@@ -826,29 +776,29 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   <button
                     onClick={handleValidation}
-                    className="bg-blue-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2 font-medium text-sm sm:text-base disabled:opacity-50"
+                    className="bg-blue-600 text-white px-6 py-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2 font-semibold"
                   >
-                    <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                    <span>Validate Data</span>
+                    <AlertCircle className="h-5 w-5" />
+                    Validate Data
                   </button>
 
                   <button
                     onClick={handleMigration}
                     disabled={isMigrating}
-                    className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg flex items-center justify-center gap-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                    className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-4 rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg flex items-center justify-center gap-2 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isMigrating ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white flex-shrink-0"></div>
-                        <span>Migrating...</span>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Migrating...
                       </>
                     ) : (
                       <>
-                        <Home className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                        <span>Run Migration</span>
+                        <Home className="h-5 w-5" />
+                        Run Migration
                       </>
                     )}
                   </button>
@@ -856,85 +806,68 @@ export default function AdminDashboard() {
                   <button
                     onClick={handleRollback}
                     disabled={isMigrating}
-                    className="bg-red-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center justify-center gap-2 font-medium text-sm sm:text-base disabled:opacity-50"
+                    className="bg-red-600 text-white px-6 py-4 rounded-xl hover:bg-red-700 transition-all shadow-lg flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
                   >
-                    <Trash2 className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                    <span>Rollback</span>
+                    <Trash2 className="h-5 w-5" />
+                    Rollback
                   </button>
                 </div>
 
-                {/* Migration Result Display */}
+                {/* Migration Result */}
                 {migrationResult && (
-                  <div className="mt-4 sm:mt-6 bg-white rounded-xl p-4 sm:p-6 border-2 border-purple-200 animate-fadeIn">
-                    <h3 className="font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
+                  <div className="bg-white rounded-xl p-6 border-2 border-purple-200">
+                    <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                       {migrationResult.success ? (
                         <>
-                          <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                          <span>✅ Migration Successful!</span>
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          ✅ Migration Successful!
                         </>
                       ) : (
                         <>
-                          <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-                          <span>⚠️ Migration Completed with Warnings</span>
+                          <AlertCircle className="h-5 w-5 text-yellow-600" />
+                          ⚠️ Migration Completed with Warnings
                         </>
                       )}
                     </h3>
 
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
-                      <div className="bg-green-50 p-3 sm:p-4 rounded-lg text-center border border-green-200">
-                        <p className="text-2xl sm:text-3xl font-bold text-green-600">
-                          {migrationResult.familiesCreated}
-                        </p>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">Families Created</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                      <div className="bg-green-50 p-4 rounded-lg text-center border border-green-200">
+                        <p className="text-3xl font-bold text-green-600">{migrationResult.familiesCreated}</p>
+                        <p className="text-sm text-gray-600 mt-1">Families Created</p>
                       </div>
-                      <div className="bg-blue-50 p-3 sm:p-4 rounded-lg text-center border border-blue-200">
-                        <p className="text-2xl sm:text-3xl font-bold text-blue-600">
-                          {migrationResult.childrenMigrated}
-                        </p>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">Children Migrated</p>
+                      <div className="bg-blue-50 p-4 rounded-lg text-center border border-blue-200">
+                        <p className="text-3xl font-bold text-blue-600">{migrationResult.childrenMigrated}</p>
+                        <p className="text-sm text-gray-600 mt-1">Children Migrated</p>
                       </div>
-                      <div className="bg-purple-50 p-3 sm:p-4 rounded-lg text-center border border-purple-200">
-                        <p className="text-2xl sm:text-3xl font-bold text-purple-600">
-                          {migrationResult.familyDetails?.length || 0}
-                        </p>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">Total Families</p>
+                      <div className="bg-purple-50 p-4 rounded-lg text-center border border-purple-200">
+                        <p className="text-3xl font-bold text-purple-600">{migrationResult.familyDetails?.length || 0}</p>
+                        <p className="text-sm text-gray-600 mt-1">Total Families</p>
                       </div>
-                      <div className="bg-red-50 p-3 sm:p-4 rounded-lg text-center border border-red-200">
-                        <p className="text-2xl sm:text-3xl font-bold text-red-600">
-                          {migrationResult.errors?.length || 0}
-                        </p>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">Errors</p>
+                      <div className="bg-red-50 p-4 rounded-lg text-center border border-red-200">
+                        <p className="text-3xl font-bold text-red-600">{migrationResult.errors?.length || 0}</p>
+                        <p className="text-sm text-gray-600 mt-1">Errors</p>
                       </div>
                     </div>
 
-                    {/* Family Details List */}
                     {migrationResult.familyDetails && migrationResult.familyDetails.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="font-semibold text-gray-900 mb-3 text-sm sm:text-base flex items-center gap-2">
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                           <Home className="h-4 w-4" />
                           Family Details:
                         </h4>
-                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300">
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
                           {migrationResult.familyDetails.map((family: any, index: number) => (
-                            <div 
-                              key={index} 
-                              className="flex items-center justify-between bg-gray-50 p-3 rounded-lg gap-2 hover:bg-gray-100 transition-colors border border-gray-200"
-                            >
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div className="bg-purple-100 p-2 rounded-lg flex-shrink-0">
+                            <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border">
+                              <div className="flex items-center gap-3">
+                                <div className="bg-purple-100 p-2 rounded-lg">
                                   <Home className="h-4 w-4 text-purple-600" />
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="font-medium text-gray-900 text-sm truncate">
-                                    {family.familyName}
-                                  </p>
-                                  <p className="text-xs text-gray-600 truncate">
-                                    {family.parentName}
-                                  </p>
+                                <div>
+                                  <p className="font-medium text-gray-900">{family.familyName}</p>
+                                  <p className="text-sm text-gray-600">{family.parentName}</p>
                                 </div>
                               </div>
-                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0">
+                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium">
                                 {family.childrenCount} {family.childrenCount === 1 ? 'child' : 'children'}
                               </span>
                             </div>
@@ -943,16 +876,15 @@ export default function AdminDashboard() {
                       </div>
                     )}
 
-                    {/* Error Display */}
                     {migrationResult.errors && migrationResult.errors.length > 0 && (
                       <div className="mt-4 bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-red-900 mb-2 text-sm flex items-center gap-2">
+                        <h4 className="font-semibold text-red-900 mb-2 flex items-center gap-2">
                           <AlertCircle className="h-4 w-4" />
                           Errors Found:
                         </h4>
                         <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
                           {migrationResult.errors.map((error: string, index: number) => (
-                            <li key={index} className="text-xs sm:text-sm">{error}</li>
+                            <li key={index}>{error}</li>
                           ))}
                         </ul>
                       </div>
@@ -961,50 +893,30 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              {/* ============================================ */}
-              {/* 🗄️ DATABASE MANAGEMENT */}
-              {/* ============================================ */}
-              <div className="bg-white rounded-xl shadow-md border p-4 sm:p-6">
+              {/* Database Management */}
+              <div className="bg-white rounded-xl shadow-lg border p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="bg-blue-600 p-2 sm:p-3 rounded-xl flex-shrink-0">
-                    <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                  <div className="bg-blue-600 p-3 rounded-xl">
+                    <Settings className="h-6 w-6 text-white" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-                      🗄️ Database Management
-                    </h2>
-                    <p className="text-xs sm:text-sm text-gray-600">
-                      Initialize or reset database structure
-                    </p>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">🗄️ Database Management</h2>
+                    <p className="text-sm text-gray-600">Initialize or reset database structure</p>
                   </div>
                 </div>
                 <InitializeDatabaseButton />
               </div>
 
-              {/* ============================================ */}
-              {/* ⚙️ SYSTEM SETTINGS PLACEHOLDER */}
-              {/* ============================================ */}
-              <div className="bg-white rounded-xl shadow-md border p-6 sm:p-8 text-center">
-                <Settings className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
-                  ⚙️ System Settings
-                </h3>
-                <p className="text-sm sm:text-base text-gray-500">
-                  Additional configuration options coming soon...
-                </p>
+              {/* System Settings Placeholder */}
+              <div className="bg-white rounded-xl shadow-lg border p-8 text-center">
+                <Settings className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">⚙️ System Settings</h3>
+                <p className="text-gray-500">Additional configuration options coming soon...</p>
               </div>
             </div>
           )}
         </main>
       </div>
-
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
     </div>
   );
 }

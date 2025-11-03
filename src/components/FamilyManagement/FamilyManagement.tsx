@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import EditStudentDetailsModal from '../Students/EditStudentDetailsModal';
+
 import {
   Users, UserPlus, Search, X, Plus, Home, User, ArrowRight,
   TrendingUp, UserCheck, List, Grid
@@ -6,7 +8,6 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 
-// Import helpers
 import {
   Family,
   Child,
@@ -14,10 +15,8 @@ import {
   calculateFamilyStats,
   filterFamilies,
   filterStudents,
-  DEFAULT_TIMEZONE
 } from './familyHelpers';
 
-// Import Views
 import {
   FamilyTableView,
   FamilyCardsView,
@@ -26,14 +25,14 @@ import {
   FullScreenTreeViewer
 } from './FamilyViews';
 
-// Import Modals
 import {
   AssignToFamilyModal,
-  EditStudentModal,
-  EditParentModal,
   AddFamilyModal,
   AddMemberModal
 } from './FamilyModals';
+
+import EditParentDetailsModal from '../Modals/Parent/EditParentDetailsModal';
+import AddInvoiceModal from '../Invoices/AddInvoiceModal';
 
 export default function FamilyManagement() {
   const { user } = useAuth();
@@ -59,7 +58,6 @@ export default function FamilyManagement() {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [activeTab, setActiveTab] = useState<'families' | 'independent'>('families');
   
-  // Modal states
   const [showAddFamilyModal, setShowAddFamilyModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showFamilyDetails, setShowFamilyDetails] = useState(false);
@@ -67,6 +65,7 @@ export default function FamilyManagement() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showEditStudentModal, setShowEditStudentModal] = useState(false);
   const [showEditParentModal, setShowEditParentModal] = useState(false);
+  const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
   
   const [memberType, setMemberType] = useState<'parent' | 'student' | 'individual'>('parent');
   const [selectedStudent, setSelectedStudent] = useState<Child | null>(null);
@@ -75,7 +74,6 @@ export default function FamilyManagement() {
   // COMPUTED VALUES (MEMOIZED)
   // ============================================
   
-  // Update selected family when families change
   useEffect(() => {
     if (selectedFamily) {
       const updatedFamily = families.find(f => f.id === selectedFamily.id);
@@ -176,6 +174,7 @@ export default function FamilyManagement() {
           email: formData.email,
           timezone: formData.timezone,
           password: formData.password,
+          status: 'active',
         };
 
         const childId = await addChild(childData);
@@ -213,6 +212,7 @@ export default function FamilyManagement() {
           email: formData.email,
           timezone: formData.timezone,
           password: formData.password,
+          status: 'active',
         });
 
         await addChildToFamily(familyId, childId);
@@ -283,7 +283,7 @@ export default function FamilyManagement() {
   };
 
   const viewIndependentStudentDetails = (student: Child) => {
-    let studentFamily = families.find(f => f.children?.includes(student.id));
+    const studentFamily = families.find(f => f.children?.includes(student.id));
     
     if (studentFamily) {
       viewFamilyDetails(studentFamily);
@@ -489,7 +489,6 @@ export default function FamilyManagement() {
 
         {/* MAIN CONTENT */}
         
-        {/* FAMILIES TAB */}
         {activeTab === 'families' && !showFamilyDetails && (
           <>
             {viewMode === 'table' && (
@@ -513,7 +512,6 @@ export default function FamilyManagement() {
           </>
         )}
 
-        {/* INDEPENDENT TAB */}
         {activeTab === 'independent' && !showFamilyDetails && (
           <IndependentStudentsList
             students={filteredIndependentStudents}
@@ -537,7 +535,6 @@ export default function FamilyManagement() {
           />
         )}
 
-        {/* FAMILY DETAILS VIEW */}
         {showFamilyDetails && selectedFamily && (
           <FamilyDetailsView
             family={selectedFamily}
@@ -558,6 +555,7 @@ export default function FamilyManagement() {
             }}
             onDeleteStudent={handleDeleteStudent}
             onShowFamilyTree={() => setShowFullScreenTree(true)}
+            onAddInvoice={() => setShowAddInvoiceModal(true)}
           />
         )}
 
@@ -583,40 +581,72 @@ export default function FamilyManagement() {
         )}
 
         {showEditStudentModal && selectedStudent && (
-          <EditStudentModal
-            student={selectedStudent}
+          <EditStudentDetailsModal
+            isOpen={showEditStudentModal}
             onClose={() => {
               setShowEditStudentModal(false);
               setSelectedStudent(null);
             }}
-            onUpdate={async (studentId, data) => {
+            studentData={{
+              id: selectedStudent.id,
+              name: selectedStudent.name,
+              age: selectedStudent.age?.toString() || '',
+              skypeId: selectedStudent.skypeId || '',
+              gender: selectedStudent.gender || 'Male',
+              language: selectedStudent.language || 'English',
+              data: selectedStudent.data || new Date().toISOString().split('T')[0],
+              numberOfDays: selectedStudent.numberOfDays || '2',
+              regularCourse: selectedStudent.regularCourse || selectedStudent.level || '',
+              teacher: selectedStudent.teacherName || '',
+              teacherId: selectedStudent.teacherId || '',
+              additionalCourse: selectedStudent.additionalCourse || '',
+              remarksForParent: selectedStudent.remarksForParent || '',
+              remarksForTeacher: selectedStudent.remarksForTeacher || '',
+              status: selectedStudent.status || 'active',
+              level: selectedStudent.level,
+              progress: selectedStudent.progress,
+              email: selectedStudent.email,
+              phone: selectedStudent.phone,
+              timezone: selectedStudent.timezone
+            }}
+            teachers={[]}
+            courses={[]}
+            onUpdate={async (studentId: string, data: any) => {
               try {
                 await updateChild(studentId, data);
-                alert('✅ Student updated successfully!');
-                setShowEditStudentModal(false);
-                setSelectedStudent(null);
+                console.log('✅ Student updated successfully');
               } catch (error) {
                 console.error('Error updating student:', error);
-                alert('❌ Failed to update student');
               }
             }}
           />
         )}
-
+        
         {showEditParentModal && selectedFamily && (
-          <EditParentModal
-            family={selectedFamily}
+          <EditParentDetailsModal
+            isOpen={showEditParentModal}
             onClose={() => setShowEditParentModal(false)}
-            onUpdate={async (familyId, data) => {
-              try {
-                await updateFamily(familyId, data);
-                alert('✅ Parent information updated successfully!');
-                setShowEditParentModal(false);
-              } catch (error) {
-                console.error('Error updating parent:', error);
-                alert('❌ Failed to update parent');
-              }
+            parentData={{
+              id: selectedFamily.id,
+              parentName: selectedFamily.parentName,
+              parentEmail: selectedFamily.parentEmail,
+              parentPhone: selectedFamily.parentPhone,
+              mobile: selectedFamily.mobile || '',
+              skype: selectedFamily.skype || '',
+              fee: selectedFamily.fee || 0,
+              country: selectedFamily.country || 'AUS',
+              city: selectedFamily.city || '',
+              timezone: selectedFamily.timezone,
+              paymentMode: selectedFamily.paymentMode || 'PayPal',
+              invoiceType: selectedFamily.invoiceType || 'Monthly',
+              invoiceCycle: selectedFamily.invoiceCycle || '1st of every month',
+              currency: selectedFamily.currency || '$',
+              belongTo: selectedFamily.belongTo || '',
+              notificationsSettings: selectedFamily.notificationsSettings || 'Email',
+              data: selectedFamily.data || new Date().toISOString().split('T')[0],
+              manager: selectedFamily.manager || 'Gehad Husam'
             }}
+            onUpdate={updateFamily}
           />
         )}
 
@@ -633,6 +663,14 @@ export default function FamilyManagement() {
             selectedFamily={selectedFamily || undefined}
             onClose={() => setShowAddMemberModal(false)}
             onSubmit={handleAddMember}
+          />
+        )}
+
+        {showAddInvoiceModal && selectedFamily && (
+          <AddInvoiceModal
+            parentId={selectedFamily.parentId || selectedFamily.id}
+            familyId={selectedFamily.id}
+            onClose={() => setShowAddInvoiceModal(false)}
           />
         )}
 

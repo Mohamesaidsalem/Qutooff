@@ -19,14 +19,28 @@ export interface Child {
   teacherName: string;
   nextClass: string;
   parentId: string;
+  createdAt: string;
+  isActive: boolean;
+  
+  // Optional properties - هنا السبب الرئيسي للمشاكل
   phone?: string;
   email?: string;
   password?: string;
   timezone?: string;
   image?: string;
   studentAccount?: StudentAccount;
-  createdAt: string;
-  isActive: boolean;
+  
+  // Properties needed for EditStudentDetailsModal - كلها optional
+  skypeId?: string;
+  gender?: string;
+  language?: string;
+  data?: string;
+  numberOfDays?: string;
+  regularCourse?: string;
+  additionalCourse?: string;
+  remarksForParent?: string;
+  remarksForTeacher?: string;
+  status?: 'active' | 'inactive' | 'suspended' | 'on-hold';
 }
 
 export interface Family {
@@ -42,6 +56,20 @@ export interface Family {
   children: string[];
   status: 'active' | 'inactive';
   createdAt: string;
+  // Additional fields for EditParentDetailsModal
+  mobile?: string;
+  skype?: string;
+  fee?: number;
+  country?: string;
+  city?: string;
+  paymentMode?: string;
+  invoiceType?: string;
+  invoiceCycle?: string;
+  currency?: string;
+  belongTo?: string;
+  notificationsSettings?: string;
+  data?: string;
+  manager?: string;
 }
 
 // ============================================
@@ -62,6 +90,8 @@ export const TIMEZONES = [
   'Asia/Tokyo',
   'Asia/Shanghai',
   'Australia/Sydney',
+  'Australia/Brisbane',
+  'Australia/Melbourne',
   'Pacific/Auckland'
 ];
 
@@ -72,6 +102,60 @@ export const STUDENT_LEVELS = [
 ];
 
 export const DEFAULT_TIMEZONE = 'Asia/Riyadh';
+
+// ============================================
+// TIMEZONE CONVERSION FUNCTIONS
+// ============================================
+
+export const convertToUTC = (localDateTime: string, timezone: string): Date => {
+  try {
+    const date = new Date(localDateTime);
+    const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+    return utcDate;
+  } catch (error) {
+    console.error('Error converting to UTC:', error);
+    return new Date();
+  }
+};
+
+export const convertFromUTC = (utcDateTime: string | Date, timezone: string): Date => {
+  try {
+    const date = typeof utcDateTime === 'string' ? new Date(utcDateTime) : utcDateTime;
+    const localDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+    return localDate;
+  } catch (error) {
+    console.error('Error converting from UTC:', error);
+    return new Date();
+  }
+};
+
+export const formatTimeForTimezone = (date: Date, timezone: string): string => {
+  try {
+    return date.toLocaleString('en-US', { 
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return date.toLocaleTimeString();
+  }
+};
+
+export const formatDateForTimezone = (date: Date, timezone: string): string => {
+  try {
+    return date.toLocaleString('en-US', { 
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return date.toLocaleDateString();
+  }
+};
 
 // ============================================
 // HELPER FUNCTIONS
