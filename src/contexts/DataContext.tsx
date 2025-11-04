@@ -73,11 +73,13 @@ export interface Class {
   date: string;
   time: string;
   duration: number;
-  status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled' | 'absent';
+  status: 'scheduled' | 'in-progress' | 'completed' | 'running'| 'cancelled' | 'absent';
   subject: string;
   zoomLink: string;
   notes?: string;
   createdAt: string;
+  onlineTime?: string;
+  updatedAt?: string;
 }
 
 export interface Invoice {
@@ -362,7 +364,7 @@ export function DataProvider({ children }: DataProviderProps) {
 
     const childrenRef = ref(database, 'children');
     const teachersRef = ref(database, 'teachers');
-    const classesRef = ref(database, 'classes');
+     const classesRef = ref(database, 'daily_classes');
     const invoicesRef = ref(database, 'invoices');
     const familiesRef = ref(database, 'families');
     const coursesRef = ref(database, 'courses'); // 🔥 Added courses ref
@@ -396,18 +398,20 @@ export function DataProvider({ children }: DataProviderProps) {
     });
 
     // Listen to classes changes
-    const unsubscribeClasses = onValue(classesRef, (snapshot: any) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const classesArray = Object.keys(data).map(key => ({
-          id: key,
-          ...data[key]
-        }));
-        setClasses(classesArray);
-      } else {
-        setClasses([]);
-      }
-    });
+     // ✅ هنا التغيير الرئيسي
+const unsubscribeClasses = onValue(classesRef, (snapshot: any) => {
+  if (snapshot.exists()) {
+    const data = snapshot.val();
+    const classesArray = Object.keys(data).map(key => ({
+      id: key,
+      ...data[key]
+    }));
+    console.log('✅ Daily classes updated from Firebase:', classesArray.length);  // للتأكد
+    setClasses(classesArray);
+  } else {
+    setClasses([]);
+  }
+});
 
     // Listen to invoices changes
     const unsubscribeInvoices = onValue(invoicesRef, (snapshot: any) => {
@@ -749,13 +753,14 @@ export function DataProvider({ children }: DataProviderProps) {
 
   const scheduleClass = async (classData: Omit<Class, 'id' | 'createdAt'>): Promise<string> => {
     try {
-      const classesRef = ref(database, 'classes');
+      const classesRef = ref(database, 'daily_classes');
       const newClassRef = push(classesRef);
       const newClass = {
         ...classData,
         createdAt: new Date().toISOString()
       };
       await set(newClassRef, newClass);
+      console.log('✅ Class scheduled in daily_classes:', newClassRef.key);
       return newClassRef.key || '';
     } catch (error) {
       console.error('Error scheduling class:', error);
@@ -765,8 +770,9 @@ export function DataProvider({ children }: DataProviderProps) {
 
   const updateClass = async (classId: string, updates: Partial<Class>): Promise<void> => {
     try {
-      const classRef = ref(database, `classes/${classId}`);
+      const classRef = ref(database, `daily_classes/${classId}`);
       await update(classRef, updates);
+      console.log('✅ Class updated in daily_classes:', classId);
     } catch (error) {
       console.error('Error updating class:', error);
       throw error;

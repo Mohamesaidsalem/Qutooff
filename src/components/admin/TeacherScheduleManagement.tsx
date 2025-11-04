@@ -423,13 +423,13 @@ export default function TeacherScheduleManagement({
 
   // 🔥 Updated handleScheduleClass function with Firebase integration and course support
   const handleScheduleClass = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (scheduleData.teacherId && scheduleData.studentId && scheduleData.date && scheduleData.time && scheduleData.duration) {
-      const { utcDate, utcTime, utcDateTime } = convertToUTC(
-        scheduleData.date, 
-        scheduleData.time, 
-        userTimezone
-      );
+  e.preventDefault();
+  if (scheduleData.teacherId && scheduleData.studentId && scheduleData.date && scheduleData.time && scheduleData.duration) {
+    const { utcDate, utcTime, utcDateTime } = convertToUTC(
+      scheduleData.date, 
+      scheduleData.time, 
+      userTimezone
+    );
 
       // Check for conflicts using UTC times
       const existingClasses = classes.filter(cls => 
@@ -455,67 +455,91 @@ export default function TeacherScheduleManagement({
 
       // 🔥 Get teacher, student, and course details
       const teacher = teachers.find(t => t.id === scheduleData.teacherId);
-      const student = children.find(c => c.id === scheduleData.studentId);
-      const course = courses.find(c => c.id === scheduleData.courseId);
+    const student = children.find(c => c.id === scheduleData.studentId);
+    const course = courses.find(c => c.id === scheduleData.courseId);
 
-      // 🔥 Complete class data with course information
-      const completeClassData = {
-        // Original fields for classes
-        studentId: scheduleData.studentId,
-        teacherId: scheduleData.teacherId,
-        courseId: scheduleData.courseId || null, // 🔥 Add courseId
-        date: scheduleData.date,
-        time: scheduleData.time,
-        utcDate,
-        utcTime,
-        utcDateTime,
-        duration: scheduleData.duration,
-        status: 'scheduled',
-        subject: course?.name || 'Quran Class', // 🔥 Use course name if available
-        zoomLink: scheduleData.zoomLink,
-        notes: scheduleData.notes,
-        timezone: userTimezone,
-        createdAt: new Date().toISOString(),
-        
-        // 🔥 Additional fields for daily_classes
-        appointmentDate: scheduleData.date,
-        appointmentTime: scheduleData.time,
-        adminTime: new Date().toISOString(),
-        teacherTime: utcDateTime,
-        studentTime: utcDateTime,
-        courseName: course?.name || 'Regular Class', // 🔥 Use actual course name
-        history: [`Class scheduled at ${new Date().toLocaleString()}`]
-      };
 
+    // ✅ Calculate adminTime (current time when admin creates the class)
+    const adminTime = new Date().toISOString();
+// ✅ Calculate teacherTime (convert appointment to teacher's timezone)
+    let teacherTime = utcDateTime;
+    if (teacher?.timezone) {
       try {
-        // 🔥 1. Add to classes (original system)
-        await onScheduleClass(completeClassData);
-        
-        // 🔥 2. Add to daily_classes (for Daily Classes Management)
-        const dailyClassesRef = ref(database, 'daily_classes');
-        const newDailyClassRef = push(dailyClassesRef);
-        await set(newDailyClassRef, completeClassData);
-        
-        console.log('✅ Class added to both collections successfully!');
-        alert('✅ Class scheduled successfully!');
-        
-        setScheduleData({
-          teacherId: '',
-          studentId: '',
-          courseId: '', // 🔥 Reset courseId
-          date: '',
-          time: '',
-          duration: 60,
-          zoomLink: 'https://zoom.us/j/123456789',
-          notes: ''
-        });
-        setShowScheduleModal(false);
+        const { localDate, localTime } = convertFromUTC(utcDate, utcTime, teacher.timezone);
+        teacherTime = new Date(`${localDate}T${localTime}:00`).toISOString();
       } catch (error) {
-        console.error('❌ Error scheduling class:', error);
-        alert('❌ Error scheduling class. Please try again.');
+        console.warn('Error converting teacher time:', error);
       }
     }
-  };
+
+    // ✅ Calculate studentTime (convert appointment to student's timezone)
+    let studentTime = utcDateTime;
+    if (student?.timezone) {
+      try {
+        const { localDate, localTime } = convertFromUTC(utcDate, utcTime, student.timezone);
+        studentTime = new Date(`${localDate}T${localTime}:00`).toISOString();
+      } catch (error) {
+        console.warn('Error converting student time:', error);
+      }
+    }
+
+      // ✅ Complete class data with proper times
+    const completeClassData = {
+      // Original fields
+      studentId: scheduleData.studentId,
+      teacherId: scheduleData.teacherId,
+      courseId: scheduleData.courseId || null,
+      date: scheduleData.date,
+      time: scheduleData.time,
+      utcDate,
+      utcTime,
+      utcDateTime,
+      duration: scheduleData.duration,
+      status: 'scheduled',
+      subject: course?.name || 'Quran Class',
+      zoomLink: scheduleData.zoomLink,
+      notes: scheduleData.notes,
+      timezone: userTimezone,
+      createdAt: new Date().toISOString(),
+      
+        
+       // ✅ Daily classes fields with correct times
+      appointmentDate: utcDate,  // Store as UTC
+      appointmentTime: utcTime,  // Store as UTC
+      adminTime,                 // ✅ When admin created
+      teacherTime,               // ✅ Appointment in teacher's timezone
+      studentTime,               // ✅ Appointment in student's timezone
+      onlineTime: null,          // ✅ Will be set when teacher starts class
+      courseName: course?.name || 'Regular Class',
+      history: [`Class scheduled at ${new Date().toLocaleString()} by admin`]
+    };
+try {
+      // Add to classes (original system)
+      await onScheduleClass(completeClassData);
+      // Add to daily_classes
+      const dailyClassesRef = ref(database, 'daily_classes');
+      const newDailyClassRef = push(dailyClassesRef);
+      await set(newDailyClassRef, completeClassData);
+      console.log('✅ Class added successfully with proper times!');
+      alert('✅ Class scheduled successfully!');
+      
+      setScheduleData({
+        teacherId: '',
+        studentId: '',
+        courseId: '',
+        date: '',
+        time: '',
+        duration: 60,
+        zoomLink: 'https://zoom.us/j/123456789',
+        notes: ''
+      });
+      setShowScheduleModal(false);
+    } catch (error) {
+      console.error('❌ Error scheduling class:', error);
+      alert('❌ Error scheduling class. Please try again.');
+    }
+  }
+};
 
   return (
     <div className="space-y-6"> 

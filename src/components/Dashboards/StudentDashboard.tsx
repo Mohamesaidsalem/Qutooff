@@ -264,37 +264,37 @@ export default function StudentDashboard() {
     setFilteredClasses(filtered);
   }, [studentClasses, filterPeriod, filterStatus, searchQuery, teachers]);
 
-  const handleJoinClass = async (classItem: any) => {
-    try {
-      setLoading(true);
-      
-      const currentTime = new Date().toISOString();
-      const classRef = ref(database, `daily_classes/${classItem.id}`);
-      
-      await update(classRef, {
-        studentTime: currentTime,
-        status: 'running',
-        updatedAt: currentTime,
-        history: [
-          ...(classItem.history || []),
-          `Student ${currentStudent.name} joined at ${new Date().toLocaleString()}`
-        ]
-      });
-      
-      if (classItem.zoomLink) {
-        window.open(classItem.zoomLink, '_blank');
-      } else {
-        alert('⚠️ No Zoom link available for this class');
-      }
-      
-      alert('✅ Successfully joined the class!');
-    } catch (error) {
-      console.error('Error joining class:', error);
-      alert('❌ Failed to join class');
-    } finally {
-      setLoading(false);
+const handleJoinClass = async (classItem: any) => {
+  try {
+    setLoading(true);
+    
+    // ✅ Update student join time (optional, if you want to track when student joined)
+    const classRef = ref(database, `daily_classes/${classItem.id}`);
+    const currentTime = new Date().toISOString();
+
+    await update(classRef, {
+      studentJoinedAt: currentTime, // ✅ Track when student joined
+      updatedAt: currentTime,
+      history: [
+        ...(classItem.history || []),
+        `Student ${currentStudent?.name || 'Unknown'} joined at ${new Date().toLocaleString()}`
+      ]
+    });
+    
+    if (classItem.zoomLink) {
+      window.open(classItem.zoomLink, '_blank');
+    } else {
+      alert('⚠️ No Zoom link available for this class');
     }
-  };
+    
+    alert('✅ Successfully joined the class!');
+  } catch (error) {
+    console.error('Error joining class:', error);
+    alert('❌ Failed to join class');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleReschedule = async () => {
     if (!selectedClass || !actionReason.trim()) {

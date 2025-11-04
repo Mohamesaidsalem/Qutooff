@@ -43,6 +43,16 @@ interface DailyClass {
     shiftedAt: string;
     shiftedBy: string;
   }>;
+
+  rescheduleHistory?: Array<{
+    oldDate: string;
+    oldTime: string;
+    newDate: string;
+    newTime: string;
+    reason: string;
+    rescheduledAt: string;
+    rescheduledBy: string;
+  }>;
 }
 
 interface Course {
@@ -87,14 +97,23 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     reason: ''
   });
 
-  // ✅ NEW: State للـ Card Details Modal
   const [selectedCardFilter, setSelectedCardFilter] = useState<{
     type: string;
     title: string;
     status?: string;
   } | null>(null);
 
-  // ✅ Real-time Courses Listener
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [selectedClassForReschedule, setSelectedClassForReschedule] = useState<DailyClass | null>(null);
+  const [rescheduleData, setRescheduleData] = useState({
+    newDate: '',
+    newTime: '',
+    reason: ''
+  });
+
+  const [showChangeStatusModal, setShowChangeStatusModal] = useState(false);
+  const [selectedClassForStatus, setSelectedClassForStatus] = useState<DailyClass | null>(null);
+
   useEffect(() => {
     const coursesRef = ref(database, 'courses');
     const unsubscribe = onValue(coursesRef, (snapshot) => {
@@ -112,7 +131,6 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     return () => off(coursesRef, 'value', unsubscribe);
   }, []);
 
-  // ✅ Real-time Daily Classes Listener (Auto-sync with Teacher Schedule)
   useEffect(() => {
     const classesRef = ref(database, 'daily_classes');
     const unsubscribe = onValue(classesRef, (snapshot) => {
@@ -163,7 +181,6 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     });
   };
 
-  // ✅ NEW: Get Classes by Card Filter
   const getClassesByCardFilter = () => {
     if (!selectedCardFilter) return [];
     
@@ -195,7 +212,6 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     }
   };
 
-  // ✅ NEW: Handle Card Click
   const handleCardClick = (type: string, title: string, status?: string) => {
     setSelectedCardFilter({ type, title, status });
   };
@@ -230,8 +246,8 @@ export default function DailyClassesManagement({ teachers, children, classes, on
   const stats = calculateStats();
 
   const handleUpdateStatus = async (classId: string, newStatus: string) => {
-    const classItem = dailyClasses.find(cls => cls.id === classId);
-    if (!classItem) return;
+     const classItem = dailyClasses.find(cls => cls.id === classId);
+  if (!classItem) return;
 
     const currentTime = new Date().toISOString();
     const currentHistory = Array.isArray(classItem.history) ? classItem.history : [];
@@ -242,10 +258,20 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     };
 
     if (newStatus === 'running') {
-      updates.onlineTime = currentTime;
-    } else if (newStatus === 'taken') {
-      updates.completedAt = currentTime;
-    }
+    updates.onlineTime = currentTime; // ✅ Save actual time teacher went online
+    updates.history = [
+      ...currentHistory, 
+      `Teacher went online at ${new Date().toLocaleString()}`
+    ];
+  } 
+  // ✅ When class is completed
+  else if (newStatus === 'taken') {
+    updates.completedAt = currentTime;
+    updates.history = [
+      ...currentHistory,
+      `Class completed at ${new Date().toLocaleString()}`
+    ];
+  }
 
     try {
       const classRef = ref(database, `daily_classes/${classId}`);
@@ -317,6 +343,82 @@ export default function DailyClassesManagement({ teachers, children, classes, on
     } catch (error) {
       console.error('Error shifting teacher:', error);
       alert('❌ Error shifting teacher. Please try again.');
+    }
+  };
+
+  const handleOpenRescheduleModal = (classItem: DailyClass) => {
+    setSelectedClassForReschedule(classItem);
+    setRescheduleData({
+      newDate: classItem.appointmentDate,
+      newTime: classItem.appointmentTime,
+      reason: ''
+    });
+    setShowRescheduleModal(true);
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!selectedClassForReschedule || !rescheduleData.newDate || !rescheduleData.newTime || !rescheduleData.reason) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    try {
+      const currentHistory = Array.isArray(selectedClassForReschedule.history) ? selectedClassForReschedule.history : [];
+      
+      const rescheduleRecord = {
+        oldDate: selectedClassForReschedule.appointmentDate,
+        oldTime: selectedClassForReschedule.appointmentTime,
+        newDate: rescheduleData.newDate,
+        newTime: rescheduleData.newTime,
+        reason: rescheduleData.reason,
+        rescheduledAt: new Date().toISOString(),
+        rescheduledBy: 'Admin'
+      };
+
+      const updates = {
+        appointmentDate: rescheduleData.newDate,
+        appointmentTime: rescheduleData.newTime,
+        status: 'rescheduled' as DailyClass['status'],
+        rescheduleHistory: [...(selectedClassForReschedule.rescheduleHistory || []), rescheduleRecord],
+        history: [
+          ...currentHistory,
+          `Rescheduled from ${rescheduleRecord.oldDate} ${rescheduleRecord.oldTime} to ${rescheduleRecord.newDate} ${rescheduleRecord.newTime} - Reason: ${rescheduleData.reason}`
+        ],
+        updatedAt: new Date().toISOString()
+      };
+
+      const classRef = ref(database, `daily_classes/${selectedClassForReschedule.id}`);
+      await update(classRef, updates);
+
+      alert('✅ Class rescheduled successfully!');
+      setShowRescheduleModal(false);
+      setSelectedClassForReschedule(null);
+      setRescheduleData({ newDate: '', newTime: '', reason: '' });
+    } catch (error) {
+      console.error('Error rescheduling class:', error);
+      alert('❌ Error rescheduling class. Please try again.');
+    }
+  };
+
+  const handleOpenChangeStatusModal = (classItem: DailyClass) => {
+    setSelectedClassForStatus(classItem);
+    setShowChangeStatusModal(true);
+  };
+
+  const handleChangeStatus = async (newStatus: string) => {
+    if (!selectedClassForStatus) return;
+    
+    if (newStatus === 'rescheduled') {
+      setShowChangeStatusModal(false);
+      handleOpenRescheduleModal(selectedClassForStatus);
+      setSelectedClassForStatus(null);
+      return;
+    }
+    
+    if (confirm(`Are you sure you want to change status to "${newStatus}"?`)) {
+      await handleUpdateStatus(selectedClassForStatus.id, newStatus);
+      setShowChangeStatusModal(false);
+      setSelectedClassForStatus(null);
     }
   };
 
@@ -403,7 +505,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
 
   return (
     <div className="space-y-2">
-      {/* Header - تصغير المسافات فقط */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Daily Classes Management</h2>
@@ -421,65 +523,46 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       </div>
 
-      {/* Statistics - ✅ الكروت الكبيرة CLICKABLE */}
+      {/* Statistics - Clickable Cards */}
       <div className="space-y-2">
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          <button
-            onClick={() => handleCardClick('total', 'All Classes')}
-            className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
-          >
+          <button onClick={() => handleCardClick('total', 'All Classes')} className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer">
             <BookOpen className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Total</p>
             <p className="text-xl font-bold">{stats.total}</p>
           </button>
           
-          <button
-            onClick={() => handleCardClick('taken', 'Completed Classes', 'taken')}
-            className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
-          >
+          <button onClick={() => handleCardClick('taken', 'Completed Classes', 'taken')} className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer">
             <CheckCircle className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Taken</p>
             <p className="text-xl font-bold">{stats.taken}</p>
           </button>
           
-          <button
-            onClick={() => handleCardClick('scheduled', 'Scheduled Classes', 'scheduled')}
-            className="bg-gradient-to-br from-yellow-500 to-yellow-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
-          >
+          <button onClick={() => handleCardClick('scheduled', 'Scheduled Classes', 'scheduled')} className="bg-gradient-to-br from-yellow-500 to-yellow-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer">
             <Clock className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Scheduled</p>
             <p className="text-xl font-bold">{stats.remaining}</p>
           </button>
 
-          <button
-            onClick={() => handleCardClick('running', 'Running Classes', 'running')}
-            className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
-          >
+          <button onClick={() => handleCardClick('running', 'Running Classes', 'running')} className="bg-gradient-to-br from-cyan-500 to-cyan-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer">
             <Clock className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Running</p>
             <p className="text-xl font-bold">{stats.running}</p>
           </button>
 
-          <button
-            onClick={() => handleCardClick('absent', 'Absent Classes', 'absent')}
-            className="bg-gradient-to-br from-red-500 to-red-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
-          >
+          <button onClick={() => handleCardClick('absent', 'Absent Classes', 'absent')} className="bg-gradient-to-br from-red-500 to-red-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer">
             <UserX className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Absent</p>
             <p className="text-xl font-bold">{stats.absent}</p>
           </button>
 
-          <button
-            onClick={() => handleCardClick('students', 'All Students Classes')}
-            className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
-          >
+          <button onClick={() => handleCardClick('students', 'All Students Classes')} className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-2 rounded-lg shadow text-white hover:shadow-xl hover:scale-105 transition-all cursor-pointer">
             <Users className="h-5 w-5 mb-0.5" />
             <p className="text-xs opacity-90">Students</p>
             <p className="text-xl font-bold">{stats.students}</p>
           </button>
         </div>
 
-        {/* ✅ الكروت الصغيرة CLICKABLE */}
         <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
           {[
             { icon: Coffee, label: 'Leave', value: stats.leave, color: 'text-orange-600', status: 'leave' },
@@ -491,11 +574,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
             { icon: Calendar, label: 'Created', value: stats.created, color: 'text-blue-600', status: 'created' },
             { icon: XCircle, label: 'Refused', value: stats.refused, color: 'text-red-500', status: 'refused' }
           ].map((stat, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleCardClick(stat.status, `${stat.label} Classes`, stat.status !== 'created' ? stat.status : undefined)}
-              className="bg-white p-1.5 rounded border text-center hover:shadow-xl hover:scale-105 transition-all cursor-pointer hover:border-blue-300"
-            >
+            <button key={idx} onClick={() => handleCardClick(stat.status, `${stat.label} Classes`, stat.status !== 'created' ? stat.status : undefined)} className="bg-white p-1.5 rounded border text-center hover:shadow-xl hover:scale-105 transition-all cursor-pointer hover:border-blue-300">
               <stat.icon className={`h-3.5 w-3.5 ${stat.color} mx-auto mb-0.5`} />
               <p className="text-xs text-gray-600">{stat.label}</p>
               <p className={`text-base font-bold ${stat.color}`}>{stat.value}</p>
@@ -504,7 +583,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       </div>
 
-      {/* Filters - تصغير padding */}
+      {/* Filters */}
       <div className="bg-white p-2.5 rounded-lg shadow-sm border">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
           <div>
@@ -726,37 +805,13 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                     Delete
                   </button>
                   
-                  <div className="relative group">
-                    <button className="w-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1">
-                      <Edit className="h-3 w-3" />
-                      More
-                    </button>
-                    <div className="absolute right-0 bottom-full mb-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 min-w-[160px]">
-                      <div className="px-3 py-2 text-xs font-bold text-gray-500 border-b mb-1">CHANGE STATUS</div>
-                      <button onClick={() => handleUpdateStatus(classItem.id, 'leave')} className="w-full text-left px-4 py-2 text-xs hover:bg-orange-50 text-orange-600 font-semibold flex items-center gap-2">
-                        <Coffee className="h-3 w-3" /> Mark Leave
-                      </button>
-                      <button onClick={() => handleUpdateStatus(classItem.id, 'declined')} className="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 font-semibold flex items-center gap-2">
-                        <XCircle className="h-3 w-3" /> Decline
-                      </button>
-                      <button onClick={() => handleUpdateStatus(classItem.id, 'suspended')} className="w-full text-left px-4 py-2 text-xs hover:bg-gray-50 text-gray-600 font-semibold flex items-center gap-2">
-                        <Pause className="h-3 w-3" /> Suspend
-                      </button>
-                      <button onClick={() => handleUpdateStatus(classItem.id, 'rescheduled')} className="w-full text-left px-4 py-2 text-xs hover:bg-indigo-50 text-indigo-600 font-semibold flex items-center gap-2">
-                        <RotateCcw className="h-3 w-3" /> Reschedule
-                      </button>
-                      <button onClick={() => handleUpdateStatus(classItem.id, 'refused')} className="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-500 font-semibold flex items-center gap-2">
-                        <XCircle className="h-3 w-3" /> Refuse
-                      </button>
-                      <div className="border-t my-1"></div>
-                      <button onClick={() => handleUpdateStatus(classItem.id, 'trial')} className="w-full text-left px-4 py-2 text-xs hover:bg-purple-50 text-purple-600 font-semibold flex items-center gap-2">
-                        <BookOpen className="h-3 w-3" /> Mark Trial
-                      </button>
-                      <button onClick={() => handleUpdateStatus(classItem.id, 'advance')} className="w-full text-left px-4 py-2 text-xs hover:bg-teal-50 text-teal-600 font-semibold flex items-center gap-2">
-                        <RefreshCw className="h-3 w-3" /> Mark Advance
-                      </button>
-                    </div>
-                  </div>
+                  <button 
+                    onClick={() => handleOpenChangeStatusModal(classItem)}
+                    className="w-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                  >
+                    <Edit className="h-3 w-3" />
+                    Change Status
+                  </button>
                 </div>
 
                 {classItem.notes && (
@@ -961,7 +1016,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                           
                           {classItem.status === 'absent' && (
                             <button 
-                              onClick={() => handleUpdateStatus(classItem.id, 'rescheduled')}
+                              onClick={() => handleOpenRescheduleModal(classItem)}
                               className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded text-xs font-bold transition-all"
                               title="Reschedule"
                             >
@@ -987,59 +1042,13 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                             <Eye className="h-3.5 w-3.5 text-indigo-600" />
                           </button>
                           
-                          <div className="relative group">
-                            <button className="p-1 hover:bg-gray-100 rounded border border-gray-200 transition-colors">
-                              <Edit className="h-3.5 w-3.5 text-gray-600" />
-                            </button>
-                            <div className="absolute right-0 top-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-2xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 min-w-[160px]">
-                              <div className="px-3 py-2 text-xs font-bold text-gray-500 border-b mb-1">CHANGE STATUS</div>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'scheduled')} className="w-full text-left px-4 py-2 text-xs hover:bg-blue-50 text-blue-600 font-semibold flex items-center gap-2">
-                                <Clock className="h-3 w-3" /> Schedule
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'running')} className="w-full text-left px-4 py-2 text-xs hover:bg-cyan-50 text-cyan-600 font-semibold flex items-center gap-2">
-                                <Clock className="h-3 w-3" /> Start Running
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'taken')} className="w-full text-left px-4 py-2 text-xs hover:bg-green-50 text-green-600 font-semibold flex items-center gap-2">
-                                <CheckCircle className="h-3 w-3" /> Mark Taken
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'absent')} className="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 font-semibold flex items-center gap-2">
-                                <UserX className="h-3 w-3" /> Mark Absent
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'leave')} className="w-full text-left px-4 py-2 text-xs hover:bg-orange-50 text-orange-600 font-semibold flex items-center gap-2">
-                                <Coffee className="h-3 w-3" /> Mark Leave
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'declined')} className="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-600 font-semibold flex items-center gap-2">
-                                <XCircle className="h-3 w-3" /> Decline
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'suspended')} className="w-full text-left px-4 py-2 text-xs hover:bg-gray-50 text-gray-600 font-semibold flex items-center gap-2">
-                                <Pause className="h-3 w-3" /> Suspend
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'rescheduled')} className="w-full text-left px-4 py-2 text-xs hover:bg-indigo-50 text-indigo-600 font-semibold flex items-center gap-2">
-                                <RotateCcw className="h-3 w-3" /> Reschedule
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'refused')} className="w-full text-left px-4 py-2 text-xs hover:bg-red-50 text-red-500 font-semibold flex items-center gap-2">
-                                <XCircle className="h-3 w-3" /> Refuse
-                              </button>
-                              <div className="border-t my-1"></div>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'trial')} className="w-full text-left px-4 py-2 text-xs hover:bg-purple-50 text-purple-600 font-semibold flex items-center gap-2">
-                                <BookOpen className="h-3 w-3" /> Mark Trial
-                              </button>
-                              <button onClick={() => handleUpdateStatus(classItem.id, 'advance')} className="w-full text-left px-4 py-2 text-xs hover:bg-teal-50 text-teal-600 font-semibold flex items-center gap-2">
-                                <RefreshCw className="h-3 w-3" /> Mark Advance
-                              </button>
-                              <div className="border-t my-1"></div>
-                              {classItem.zoomLink && (
-                                <a 
-                                  href={classItem.zoomLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="w-full text-left px-4 py-2 text-xs hover:bg-green-50 text-green-600 font-semibold flex items-center gap-2"
-                                >
-                                  <Video className="h-3 w-3" /> Join Zoom
-                                </a>
-                              )}
-                            </div>
-                          </div>
+                          <button 
+                            onClick={() => handleOpenChangeStatusModal(classItem)}
+                            className="p-1.5 hover:bg-teal-50 rounded-lg border border-teal-200 transition-colors"
+                            title="Change Status"
+                          >
+                            <Edit className="h-3.5 w-3.5 text-teal-600" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1060,11 +1069,10 @@ export default function DailyClassesManagement({ teachers, children, classes, on
         </div>
       )}
 
-      {/* ✅ NEW: Card Details Modal */}
+      {/* Card Details Modal */}
       {selectedCardFilter && (
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-7xl w-full mx-auto max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
             <div className="p-6 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
               <div className="flex items-center justify-between">
                 <div>
@@ -1073,30 +1081,26 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                     Total: {getClassesByCardFilter().length} {getClassesByCardFilter().length === 1 ? 'class' : 'classes'}
                   </p>
                 </div>
-                <button
-                  onClick={() => setSelectedCardFilter(null)}
-                  className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
-                >
+                <button onClick={() => setSelectedCardFilter(null)} className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors">
                   <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {getClassesByCardFilter().length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Date & Time</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Student</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Teacher</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Course</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Duration</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Actions</th>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Date & Time</th>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Student</th>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Teacher</th>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Course</th>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Status</th>
+                        <th className="px-3 py-2 text-left text-xs font-bold text-gray-700 uppercase">Duration</th>
+                        <th className="px-3 py-2 text-center text-xs font-bold text-gray-700 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -1107,13 +1111,13 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                         
                         return (
                           <tr key={classItem.id} className="hover:bg-blue-50 transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="px-3 py-2 whitespace-nowrap">
                               <span className="text-xs font-mono font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
                                 #{classItem.id.slice(-6)}
                               </span>
                             </td>
                             
-                            <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="px-3 py-2 whitespace-nowrap">
                               <div className="flex items-center gap-2 text-sm">
                                 <Calendar className="h-4 w-4 text-blue-600" />
                                 <span className="font-bold text-gray-900">{classItem.appointmentDate}</span>
@@ -1124,17 +1128,17 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                               </div>
                             </td>
                             
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2">
                               <div className="text-sm font-semibold text-gray-900">{student?.name || 'Unknown'}</div>
                               <div className="text-xs text-gray-500">{student?.level || 'No level'}</div>
                             </td>
                             
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2">
                               <div className="text-sm font-semibold text-gray-900">{teacher?.name || 'Unknown'}</div>
                               <div className="text-xs text-gray-500">{teacher?.subject || 'No subject'}</div>
                             </td>
                             
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2">
                               {course ? (
                                 <>
                                   <div className="text-sm font-semibold text-purple-900">{course.title}</div>
@@ -1145,7 +1149,7 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                               )}
                             </td>
                             
-                            <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="px-3 py-2 whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
                                 {getStatusIcon(classItem.status)}
                                 <span className={`px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(classItem.status)}`}>
@@ -1154,11 +1158,11 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                               </div>
                             </td>
                             
-                            <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="px-3 py-2 whitespace-nowrap">
                               <span className="text-sm font-semibold text-gray-900">{classItem.duration} min</span>
                             </td>
                             
-                            <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="px-3 py-2 whitespace-nowrap">
                               <div className="flex items-center justify-center gap-2">
                                 <button
                                   onClick={() => {
@@ -1181,6 +1185,17 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                                 >
                                   <History className="h-4 w-4 text-purple-600" />
                                 </button>
+
+                                <button
+                                  onClick={() => {
+                                    handleOpenChangeStatusModal(classItem);
+                                    setSelectedCardFilter(null);
+                                  }}
+                                  className="p-2 hover:bg-teal-50 rounded-lg border border-teal-200 transition-colors"
+                                  title="Change Class Status"
+                                >
+                                  <Edit className="h-4 w-4 text-teal-600" />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1198,17 +1213,265 @@ export default function DailyClassesManagement({ teachers, children, classes, on
               )}
             </div>
 
-            {/* Footer */}
             <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
               <p className="text-sm text-gray-600">
                 Showing {getClassesByCardFilter().length} {getClassesByCardFilter().length === 1 ? 'class' : 'classes'}
               </p>
-              <button
-                onClick={() => setSelectedCardFilter(null)}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-bold shadow-lg"
-              >
+              <button onClick={() => setSelectedCardFilter(null)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-bold shadow-lg">
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Status Modal */}
+      {showChangeStatusModal && selectedClassForStatus && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-auto max-h-[90vh] overflow-y-auto">
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-5 pb-3 border-b">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-gradient-to-r from-teal-600 to-emerald-600 rounded-lg shadow-lg">
+                    <Edit className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Change Status</h2>
+                    <p className="text-xs text-gray-600">
+                      {selectedClassForStatus.appointmentDate} at {selectedClassForStatus.appointmentTime}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setShowChangeStatusModal(false)} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                  <XCircle className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs font-bold text-blue-900 mb-1">Current Status:</p>
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(selectedClassForStatus.status)}
+                  <span className={`px-2 py-1 text-xs font-bold rounded-full ${getStatusColor(selectedClassForStatus.status)}`}>
+                    {selectedClassForStatus.status.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-xs font-bold text-gray-700 mb-3">Select New Status:</p>
+                
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Main Statuses</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { status: 'scheduled', icon: Clock, label: 'Scheduled', gradient: 'from-yellow-500 to-yellow-600' },
+                      { status: 'running', icon: Clock, label: 'Running', gradient: 'from-cyan-500 to-cyan-600' },
+                      { status: 'taken', icon: CheckCircle, label: 'Taken', gradient: 'from-green-500 to-green-600' },
+                      { status: 'absent', icon: UserX, label: 'Absent', gradient: 'from-red-500 to-red-600' }
+                    ].map((item) => (
+                      <button
+                        key={item.status}
+                        onClick={() => handleChangeStatus(item.status)}
+                        disabled={selectedClassForStatus.status === item.status}
+                        className={`p-2 rounded-lg border transition-all text-center ${
+                          selectedClassForStatus.status === item.status
+                            ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
+                            : `bg-gradient-to-br ${item.gradient} hover:shadow-lg hover:scale-105 cursor-pointer text-white border-transparent`
+                        }`}
+                      >
+                        <item.icon className="h-5 w-5 mx-auto mb-1" />
+                        <p className="text-xs font-bold">{item.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Special</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { status: 'leave', icon: Coffee, label: 'Leave', gradient: 'from-orange-500 to-orange-600' },
+                      { status: 'declined', icon: XCircle, label: 'Declined', gradient: 'from-red-600 to-red-700' },
+                      { status: 'suspended', icon: Pause, label: 'Suspended', gradient: 'from-gray-500 to-gray-600' },
+                      { status: 'refused', icon: XCircle, label: 'Refused', gradient: 'from-red-500 to-pink-600' }
+                    ].map((item) => (
+                      <button
+                        key={item.status}
+                        onClick={() => handleChangeStatus(item.status)}
+                        disabled={selectedClassForStatus.status === item.status}
+                        className={`p-2 rounded-lg border transition-all text-center ${
+                          selectedClassForStatus.status === item.status
+                            ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
+                            : `bg-gradient-to-br ${item.gradient} hover:shadow-lg hover:scale-105 cursor-pointer text-white border-transparent`
+                        }`}
+                      >
+                        <item.icon className="h-5 w-5 mx-auto mb-1" />
+                        <p className="text-xs font-bold">{item.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Additional</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { status: 'trial', icon: BookOpen, label: 'Trial', gradient: 'from-purple-500 to-purple-600' },
+                      { status: 'advance', icon: RefreshCw, label: 'Advance', gradient: 'from-teal-500 to-teal-600' },
+                      { status: 'rescheduled', icon: RotateCcw, label: 'Reschedule', gradient: 'from-indigo-500 to-indigo-600' }
+                    ].map((item) => (
+                      <button
+                        key={item.status}
+                        onClick={() => handleChangeStatus(item.status)}
+                        disabled={selectedClassForStatus.status === item.status}
+                        className={`p-2 rounded-lg border transition-all text-center ${
+                          selectedClassForStatus.status === item.status
+                            ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
+                            : `bg-gradient-to-br ${item.gradient} hover:shadow-lg hover:scale-105 cursor-pointer text-white border-transparent`
+                        }`}
+                      >
+                        <item.icon className="h-5 w-5 mx-auto mb-1" />
+                        <p className="text-xs font-bold">{item.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                  <p className="text-xs text-amber-800">
+                    <strong>Note:</strong> Status will be updated immediately. Some changes may require additional actions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button onClick={() => setShowChangeStatusModal(false)} className="bg-gray-200 text-gray-800 px-5 py-2 rounded-lg hover:bg-gray-300 transition-colors font-bold text-sm">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule Modal */}
+      {showRescheduleModal && selectedClassForReschedule && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg">
+                    <RotateCcw className="h-6 w-6 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900">Reschedule Class</h2>
+                </div>
+                <button onClick={() => setShowRescheduleModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mb-6 p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
+                <p className="text-sm font-bold text-blue-900 mb-2">Current Class Information:</p>
+                <div className="space-y-1 text-sm text-blue-800">
+                  <p><strong>Date:</strong> {selectedClassForReschedule.appointmentDate}</p>
+                  <p><strong>Time:</strong> {selectedClassForReschedule.appointmentTime}</p>
+                  <p><strong>Teacher:</strong> {teachers.find(t => t.id === selectedClassForReschedule.teacherId)?.name}</p>
+                  <p><strong>Student:</strong> {children.find(c => c.id === selectedClassForReschedule.studentId)?.name}</p>
+                  <p><strong>Duration:</strong> {selectedClassForReschedule.duration} minutes</p>
+                  {selectedClassForReschedule.courseId && (
+                    <p><strong>Course:</strong> {courses.find(c => c.id === selectedClassForReschedule.courseId)?.title}</p>
+                  )}
+                </div>
+              </div>
+
+              {selectedClassForReschedule.rescheduleHistory && selectedClassForReschedule.rescheduleHistory.length > 0 && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    Reschedule History:
+                  </p>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {selectedClassForReschedule.rescheduleHistory.map((reschedule, idx) => (
+                      <div key={idx} className="text-xs bg-white p-3 rounded-lg border">
+                        <p className="font-semibold text-gray-900">
+                          {reschedule.oldDate} {reschedule.oldTime} → {reschedule.newDate} {reschedule.newTime}
+                        </p>
+                        <p className="text-gray-600">Reason: {reschedule.reason}</p>
+                        <p className="text-gray-500">
+                          {new Date(reschedule.rescheduledAt).toLocaleString()} by {reschedule.rescheduledBy}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <form className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">New Date *</label>
+                    <input
+                      type="date"
+                      value={rescheduleData.newDate}
+                      onChange={(e) => setRescheduleData({...rescheduleData, newDate: e.target.value})}
+                      className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">New Time *</label>
+                    <input
+                      type="time"
+                      value={rescheduleData.newTime}
+                      onChange={(e) => setRescheduleData({...rescheduleData, newTime: e.target.value})}
+                      className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Reason for Rescheduling *</label>
+                  <textarea
+                    value={rescheduleData.reason}
+                    onChange={(e) => setRescheduleData({...rescheduleData, reason: e.target.value})}
+                    className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    rows={4}
+                    placeholder="Please provide a reason (e.g., teacher unavailable, student request, conflict, etc.)"
+                    required
+                  />
+                </div>
+
+                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-bold mb-1">Important Notes:</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>The class status will be changed to "Rescheduled"</li>
+                        <li>Both teacher and student will need to be notified</li>
+                        <li>Previous date/time will be saved in history</li>
+                        <li>Make sure the new time doesn't conflict with other classes</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t">
+                  <button type="button" onClick={() => setShowRescheduleModal(false)} className="flex-1 bg-gray-200 text-gray-800 py-3 px-4 rounded-xl hover:bg-gray-300 transition-colors font-bold">
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleConfirmReschedule} className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all font-bold shadow-lg flex items-center justify-center gap-2">
+                    <RotateCcw className="h-5 w-5" />
+                    Confirm Reschedule
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
@@ -1250,13 +1513,9 @@ export default function DailyClassesManagement({ teachers, children, classes, on
                   <div className="space-y-2">
                     {selectedClassForShift.shiftHistory.map((shift, idx) => (
                       <div key={idx} className="text-xs bg-white p-3 rounded-lg border">
-                        <p className="font-semibold text-gray-900">
-                          {shift.fromName} → {shift.toName}
-                        </p>
+                        <p className="font-semibold text-gray-900">{shift.fromName} → {shift.toName}</p>
                         <p className="text-gray-600">Reason: {shift.reason}</p>
-                        <p className="text-gray-500">
-                          {new Date(shift.shiftedAt).toLocaleString()} by {shift.shiftedBy}
-                        </p>
+                        <p className="text-gray-500">{new Date(shift.shiftedAt).toLocaleString()} by {shift.shiftedBy}</p>
                       </div>
                     ))}
                   </div>
@@ -1265,54 +1524,25 @@ export default function DailyClassesManagement({ teachers, children, classes, on
 
               <form className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    New Teacher *
-                  </label>
-                  <select
-                    value={shiftData.newTeacherId}
-                    onChange={(e) => setShiftData({...shiftData, newTeacherId: e.target.value})}
-                    className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    required
-                  >
+                  <label className="block text-sm font-bold text-gray-700 mb-2">New Teacher *</label>
+                  <select value={shiftData.newTeacherId} onChange={(e) => setShiftData({...shiftData, newTeacherId: e.target.value})} className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" required>
                     <option value="">Select a teacher...</option>
-                    {teachers
-                      .filter(t => t.id !== selectedClassForShift.teacherId)
-                      .map(teacher => (
-                        <option key={teacher.id} value={teacher.id}>
-                          {teacher.name} - {teacher.email}
-                        </option>
-                      ))
-                    }
+                    {teachers.filter(t => t.id !== selectedClassForShift.teacherId).map(teacher => (
+                      <option key={teacher.id} value={teacher.id}>{teacher.name} - {teacher.email}</option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    Reason for Shift *
-                  </label>
-                  <textarea
-                    value={shiftData.reason}
-                    onChange={(e) => setShiftData({...shiftData, reason: e.target.value})}
-                    className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    rows={4}
-                    placeholder="Please provide a reason (e.g., teacher sick, emergency, unavailable, etc.)"
-                    required
-                  />
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Reason for Shift *</label>
+                  <textarea value={shiftData.reason} onChange={(e) => setShiftData({...shiftData, reason: e.target.value})} className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" rows={4} placeholder="Please provide a reason (e.g., teacher sick, emergency, unavailable, etc.)" required />
                 </div>
 
                 <div className="flex gap-3 pt-4 border-t">
-                  <button
-                    type="button"
-                    onClick={() => setShowShiftModal(false)}
-                    className="flex-1 bg-gray-200 text-gray-800 py-3 px-4 rounded-xl hover:bg-gray-300 transition-colors font-bold"
-                  >
+                  <button type="button" onClick={() => setShowShiftModal(false)} className="flex-1 bg-gray-200 text-gray-800 py-3 px-4 rounded-xl hover:bg-gray-300 transition-colors font-bold">
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleConfirmShift}
-                    className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 px-4 rounded-xl hover:from-orange-700 hover:to-orange-800 transition-all font-bold shadow-lg flex items-center justify-center gap-2"
-                  >
+                  <button type="button" onClick={handleConfirmShift} className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 px-4 rounded-xl hover:from-orange-700 hover:to-orange-800 transition-all font-bold shadow-lg flex items-center justify-center gap-2">
                     <UserCog className="h-5 w-5" />
                     Confirm Shift
                   </button>

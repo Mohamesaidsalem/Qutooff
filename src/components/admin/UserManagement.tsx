@@ -12,9 +12,16 @@ import {
   Mail,
   Globe,
   User,
-  Home
+  Home,
+  X,
+  Save,
+  Key,
+  Lock
 } from 'lucide-react';
 import { useData } from '../../contexts/DataContext';
+import { ref, update } from 'firebase/database';
+import { database, auth } from '../../firebase/config';
+import { updatePassword } from 'firebase/auth';
 
 // ============================================
 // TYPES
@@ -60,11 +67,312 @@ interface TeacherUser extends BaseUser {
 type AllUser = FamilyUser | StudentUser | TeacherUser;
 
 // ============================================
-// Helper Functions
+// EDIT USER MODAL
 // ============================================
 
-const isIndependentAccount = (familyName: string, childrenCount: number): boolean => {
-  return familyName?.includes("'s Account") || childrenCount === 1;
+interface EditUserModalProps {
+  user: AllUser;
+  onClose: () => void;
+  onSave: (updatedUser: AllUser) => Promise<void>;
+}
+
+const EditUserModal: React.FC<EditUserModalProps> = ({ user, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    ...(user.type === 'student' && {
+      age: user.age,
+      level: user.level
+    }),
+    ...(user.type === 'teacher' && {
+      specialization: user.specialization,
+      experience: user.experience
+    }),
+    ...(user.type === 'family' && {
+      timezone: user.timezone
+    })
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const updatedUser = { ...user, ...formData };
+      await onSave(updatedUser);
+      onClose();
+    } catch (error) {
+      console.error('Error saving user:', error);
+      alert('Failed to save user changes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+          <h3 className="text-xl font-semibold text-gray-900">Edit User</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+
+          {user.type === 'student' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                <input
+                  type="number"
+                  value={formData.age}
+                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  min="5"
+                  max="100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+                <select
+                  value={formData.level}
+                  onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="Advanced">Advanced</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {user.type === 'teacher' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
+                <input
+                  type="text"
+                  value={formData.specialization}
+                  onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Experience (years)</label>
+                <input
+                  type="number"
+                  value={formData.experience}
+                  onChange={(e) => setFormData({ ...formData, experience: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  min="0"
+                />
+              </div>
+            </>
+          )}
+
+          {user.type === 'family' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+              <select
+                value={formData.timezone}
+                onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="Africa/Cairo">Africa/Cairo (GMT+2)</option>
+                <option value="America/New_York">America/New_York (GMT-5)</option>
+                <option value="Europe/London">Europe/London (GMT+0)</option>
+                <option value="Asia/Dubai">Asia/Dubai (GMT+4)</option>
+              </select>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save className="h-4 w-4" />
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// RESET PASSWORD MODAL
+// ============================================
+
+interface ResetPasswordModalProps {
+  user: AllUser;
+  onClose: () => void;
+  onReset: (userId: string, newPassword: string) => Promise<void>;
+}
+
+const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ user, onClose, onReset }) => {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onReset(user.id, newPassword);
+      onClose();
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      setError('Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Lock className="h-5 w-5" />
+            <h3 className="text-xl font-semibold">Reset Password</h3>
+          </div>
+          <button onClick={onClose} className="text-white hover:text-gray-200">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-800">
+              <strong>User:</strong> {user.name} ({user.email})
+            </p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="Enter new password"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="Confirm new password"
+              required
+            />
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="showPassword"
+              checked={showPassword}
+              onChange={(e) => setShowPassword(e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="showPassword" className="ml-2 text-sm text-gray-700">
+              Show passwords
+            </label>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Key className="h-4 w-4" />
+              {loading ? 'Resetting...' : 'Reset Password'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 };
 
 // ============================================
@@ -72,11 +380,16 @@ const isIndependentAccount = (familyName: string, childrenCount: number): boolea
 // ============================================
 
 const UserManagement = () => {
-  const { families, children, teachers } = useData();
+  const { families, children, teachers, updateChild, updateFamily } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
+  const [editingUser, setEditingUser] = useState<AllUser | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<AllUser | null>(null);
 
-  // دمج كل البيانات في مكان واحد
+  const isIndependentAccount = (familyName: string, childrenCount: number): boolean => {
+    return familyName?.includes("'s Account") || childrenCount === 1;
+  };
+
   const allUsers = React.useMemo((): AllUser[] => {
     const familyUsers: FamilyUser[] = families.map(family => {
       const isIndependent = isIndependentAccount(family.name, family.children?.length || 0);
@@ -99,7 +412,7 @@ const UserManagement = () => {
     const studentUsers: StudentUser[] = children.map(child => ({
       id: child.id,
       name: child.name,
-      email: child.email || '',
+      email: child.email || child.studentAccount?.email || '',
       phone: child.phone || '',
       role: 'student' as const,
       type: 'student' as const,
@@ -119,27 +432,84 @@ const UserManagement = () => {
       role: 'teacher' as const,
       type: 'teacher' as const,
       specialization: teacher.specialization,
-      experience: 5, // قيمة افتراضية أو يمكن إضافتها للـ Teacher type
-      rating: 4.5, // قيمة افتراضية أو يمكن إضافتها للـ Teacher type
-      createdAt: new Date().toISOString() // قيمة افتراضية
+      experience: 5,
+      rating: 4.5,
+      createdAt: new Date().toISOString()
     }));
 
     return [...familyUsers, ...studentUsers, ...teacherUsers];
   }, [families, children, teachers]);
 
-  const handleViewUser = (user: AllUser) => {
-    console.log('Viewing user:', user);
-    alert(`Viewing ${user.name} - ${user.role}`);
+  const handleSaveUser = async (updatedUser: AllUser) => {
+    try {
+      if (updatedUser.type === 'student') {
+        await updateChild(updatedUser.id, {
+          name: updatedUser.name,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          age: updatedUser.age,
+          level: updatedUser.level
+        });
+      } else if (updatedUser.type === 'family') {
+        await updateFamily(updatedUser.id, {
+          parentName: updatedUser.name,
+          parentEmail: updatedUser.email,
+          parentPhone: updatedUser.phone,
+          timezone: updatedUser.timezone
+        });
+      } else if (updatedUser.type === 'teacher') {
+        const teacherRef = ref(database, `teachers/${updatedUser.id}`);
+        await update(teacherRef, {
+          name: updatedUser.name,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          specialization: updatedUser.specialization,
+          experience: updatedUser.experience
+        });
+      }
+      alert('✅ User updated successfully!');
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
   };
 
-  const handleEditUser = (user: AllUser) => {
-    console.log('Editing user:', user);
-    alert(`Editing ${user.name}`);
+  const handleResetPassword = async (userId: string, newPassword: string) => {
+    try {
+      const user = allUsers.find(u => u.id === userId);
+      if (!user) throw new Error('User not found');
+
+      if (user.type === 'student') {
+        // Update in children node
+        const childRef = ref(database, `children/${userId}`);
+        await update(childRef, {
+          password: newPassword,
+          'studentAccount/password': newPassword
+        });
+        alert('✅ Password reset successfully for student!');
+      } else if (user.type === 'family') {
+        // Update in families node (for parent login)
+        const familyRef = ref(database, `families/${userId}`);
+        await update(familyRef, {
+          password: newPassword
+        });
+        alert('✅ Password reset successfully for parent!');
+      } else if (user.type === 'teacher') {
+        const teacherRef = ref(database, `teachers/${userId}`);
+        await update(teacherRef, {
+          password: newPassword
+        });
+        alert('✅ Password reset successfully for teacher!');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      throw error;
+    }
   };
 
   const handleDeleteUser = (userId: string, userName: string) => {
-    if (window.confirm(`Delete ${userName}?`)) {
-      alert(`Deleting ${userName} - Feature to be implemented`);
+    if (window.confirm(`Are you sure you want to delete ${userName}?`)) {
+      alert(`🗑️ Deleting ${userName} - Feature to be implemented`);
     }
   };
 
@@ -188,7 +558,7 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* Enhanced Statistics */}
+      {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-lg border shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
@@ -243,6 +613,7 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* Search & Filter */}
       <div className="bg-white p-4 rounded-lg shadow-sm border">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
@@ -252,7 +623,7 @@ const UserManagement = () => {
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -260,7 +631,7 @@ const UserManagement = () => {
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
               <option value="all">All Roles</option>
               <option value="student">Students</option>
@@ -271,6 +642,7 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* Users Table */}
       <div className="bg-white shadow-sm rounded-lg border overflow-hidden">
         <div className="px-6 py-4 border-b bg-gray-50">
           <h3 className="text-lg font-semibold text-gray-900">All Users ({filteredUsers.length})</h3>
@@ -279,18 +651,17 @@ const UserManagement = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredUsers.map((user) => (
-                <tr key={`${user.type}-${user.id}`} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
+                <tr key={`${user.type}-${user.id}`} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">{user.name}</div>
                       <div className="text-sm text-gray-500">{user.email || 'No email'}</div>
@@ -299,7 +670,7 @@ const UserManagement = () => {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                       user.role === 'teacher' ? 'bg-green-100 text-green-800' :
                       user.role === 'student' ? 'bg-blue-100 text-blue-800' :
@@ -311,8 +682,8 @@ const UserManagement = () => {
                        user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    <div className="space-y-1">
+                  <td className="px-6 py-4">
+                    <div className="space-y-1 text-sm text-gray-900">
                       {user.phone && (
                         <div className="flex items-center gap-1">
                           <Phone className="h-3 w-3 text-gray-400" />
@@ -322,63 +693,53 @@ const UserManagement = () => {
                       {user.email && (
                         <div className="flex items-center gap-1">
                           <Mail className="h-3 w-3 text-gray-400" />
-                          <span className="truncate">{user.email}</span>
+                          <span className="truncate max-w-[200px]">{user.email}</span>
                         </div>
                       )}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {user.type === 'student' && (
-                      <div>
+                      <div className="space-y-1">
                         <div>Age: {user.age}, Level: {user.level}</div>
                         <div>Progress: {user.progress}%</div>
-                        <div>Teacher: {user.teacherName}</div>
                       </div>
                     )}
                     {user.type === 'teacher' && (
-                      <div>
-                        <div>Specialization: {user.specialization}</div>
-                        {user.experience && <div>Experience: {user.experience} years</div>}
-                        {user.rating && <div>Rating: {user.rating}/5</div>}
+                      <div className="space-y-1">
+                        <div>{user.specialization}</div>
+                        {user.experience && <div>{user.experience} years exp.</div>}
                       </div>
                     )}
                     {user.type === 'family' && (
-                      <div>
+                      <div className="space-y-1">
                         <div className="flex items-center gap-1">
                           <Globe className="h-3 w-3 text-gray-400" />
                           <span>{user.timezone}</span>
                         </div>
                         <div>Students: {user.studentsCount}</div>
-                        {user.role === 'independent_student' && (
-                          <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
-                            Independent Account
-                          </span>
-                        )}
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => handleViewUser(user)}
-                        className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded"
-                        title="View User"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEditUser(user)}
-                        className="text-gray-600 hover:text-gray-900 p-2 hover:bg-gray-50 rounded"
+                        onClick={() => setEditingUser(user)}
+                        className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded transition-colors"
                         title="Edit User"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => setResetPasswordUser(user)}
+                        className="text-green-600 hover:text-green-900 p-2 hover:bg-green-50 rounded transition-colors"
+                        title="Reset Password"
+                      >
+                        <Key className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => handleDeleteUser(user.id, user.name)}
-                        className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded"
+                        className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded transition-colors"
                         title="Delete User"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -398,6 +759,23 @@ const UserManagement = () => {
           )}
         </div>
       </div>
+
+      {/* Modals */}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={handleSaveUser}
+        />
+      )}
+
+      {resetPasswordUser && (
+        <ResetPasswordModal
+          user={resetPasswordUser}
+          onClose={() => setResetPasswordUser(null)}
+          onReset={handleResetPassword}
+        />
+      )}
     </div>
   );
 };
