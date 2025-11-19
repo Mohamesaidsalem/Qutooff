@@ -300,7 +300,7 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
               <img 
                 src={logo} 
                 alt="Quraan Academy Logo" 
-                className="h-20 w-auto object-contain"
+                className="h-36 w-auto object-contain"
               />
             </div>
             
