@@ -6,7 +6,7 @@ interface ManageStudentStatusModalProps {
     id: string;
     name: string;
   };
-  currentStatus: 'active' | 'suspended' | 'leave' | 'break';
+  currentStatus: 'active' | 'suspended' | 'leave' | 'break' | 'on-hold' | 'inactive';
   onClose: () => void;
   onStatusChange: (newStatus: 'active' | 'suspended' | 'leave' | 'break') => Promise<void>;
 }

@@ -3,29 +3,40 @@ import { XCircle, Save, UserCog } from 'lucide-react';
 import { ref, update } from 'firebase/database';
 import { database } from '../../firebase/config';
 
+// ✅ Interface مُصلح - كل الحقول optional ماعدا الأساسيات
 export interface StudentData {
   id: string;
   name: string;
   age: string | number;
-  skypeId: string;
-  gender: string;
-  language: string;
-  data: string;
-  numberOfDays: string;
-  regularCourse: string;
-  teacher: string;
-  teacherId?: string;
-  additionalCourse: string;
-  remarksForParent: string;
-  remarksForTeacher: string;
-  status: 'active' | 'suspended' | 'on-hold' | 'inactive';
-  level?: string;
-  progress?: number;
   email?: string;
   phone?: string;
+  skypeId?: string;
+  gender?: string;
+  language?: string;
+  data?: string;
+  numberOfDays?: string;
+  regularCourse?: string;
+  teacher?: string;
+  teacherId?: string;
+  additionalCourse?: string;
+  remarksForParent?: string;
+  remarksForTeacher?: string;
+  status: 'active' | 'suspended' | 'leave' | 'break' | 'on-hold' | 'inactive';
+  level?: string;
+  progress?: number;
   timezone?: string;
   courseId?: string;
   courseName?: string;
+  teacherName?: string;
+  parentId?: string;
+  parentName?: string;
+  parentEmail?: string;
+  nextClass?: string;
+  totalClasses?: number;
+  completedClasses?: number;
+  attendanceRate?: number;
+  createdAt?: string;
+  studentImage?: string;
 }
 
 interface Teacher {
@@ -41,9 +52,8 @@ interface Course {
 }
 
 interface EditStudentDetailsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
   studentData: StudentData;
+  onClose: () => void;
   teachers?: Teacher[];
   courses?: Course[];
   onUpdate?: (studentId: string, data: Partial<StudentData>) => void | Promise<void>;
@@ -85,17 +95,18 @@ const TEACHERS_DEFAULT = [
   'Fatima Mohammed'
 ];
 
-const STATUS_OPTIONS: Array<'active' | 'suspended' | 'on-hold' | 'inactive'> = [
-  'active', 
-  'suspended', 
-  'on-hold', 
+const STATUS_OPTIONS: Array<'active' | 'suspended' | 'leave' | 'break' | 'on-hold' | 'inactive'> = [
+  'active',
+  'suspended',
+  'leave',
+  'break',
+  'on-hold',
   'inactive'
 ];
 
 export default function EditStudentDetailsModal({
-  isOpen,
-  onClose,
   studentData,
+  onClose,
   teachers = [],
   courses = [],
   onUpdate
@@ -114,7 +125,7 @@ export default function EditStudentDetailsModal({
     additionalCourse: studentData.additionalCourse || '',
     remarksForParent: studentData.remarksForParent || '',
     remarksForTeacher: studentData.remarksForTeacher || '',
-    status: (studentData.status || 'active') as 'active' | 'suspended' | 'on-hold' | 'inactive',
+    status: (studentData.status || 'active') as 'active' | 'suspended' | 'leave' | 'break' | 'on-hold' | 'inactive',
   });
 
   const [loading, setLoading] = useState(false);
@@ -142,15 +153,15 @@ export default function EditStudentDetailsModal({
         status: formData.status,
         updatedAt: new Date().toISOString()
       };
-      
+
       await update(childRef, updateData);
 
       alert('✅ Student details updated successfully!');
-      
+
       if (onUpdate) {
         await onUpdate(studentData.id, updateData);
       }
-      
+
       onClose();
     } catch (error) {
       console.error('Error updating student:', error);
@@ -159,8 +170,6 @@ export default function EditStudentDetailsModal({
       setLoading(false);
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -448,7 +457,7 @@ export default function EditStudentDetailsModal({
                 ))}
               </select>
               <p className="text-xs text-gray-500 mt-2">
-                💡 Use <strong>'Suspended'</strong> or <strong>'On-hold'</strong> for students taking a break or vacation.
+                💡 Use <strong>'suspended'</strong>, <strong>'leave'</strong>, <strong>'break'</strong>, or <strong>'on-hold'</strong> for students taking a break or vacation.
               </p>
             </div>
           </div>

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
-
 // Components
 import Header from './components/Layout/Header';
 import LoginForm from './components/Auth/LoginForm';
@@ -21,8 +20,9 @@ import AdminSectionManager from './components/Dashboards/AdminSectionManager';
 
 // ✅ Family Management & Profiles
 import FamilyManagement from './components/FamilyManagement/FamilyManagement';
-
-import StudentProfile from './components/Students/StudentProfile'; // ✅ Added
+import StudentProfile from './components/Students/StudentProfile';
+import ParentProfile from './components/Modals/Parent/ParentProfile';
+import TeacherProfile from './components/admin/TeacherProfile'; // ✅ Fixed import path
 
 // Public Pages
 import CoursesPage from './components/CoursesPage';
@@ -36,7 +36,6 @@ import AdvanceClassScheduler from './components/Modals/Weekly Classes/AdvanceCla
 import PublicHolidaysManager from './components/Modals/Weekly Classes/PublicHolidaysManager';
 import SalaryClassReport from './components/Modals/Weekly Classes/SalaryClassReport';
 import DailyClassReport from './components/Modals/Weekly Classes/DailyClassReport';
-import ParentProfile from './components/Modals/Parent/ParentProfile';
 
 interface CustomUser {
   role: 'parent' | 'teacher' | 'student' | 'admin' | 'super_admin' | string;
@@ -165,6 +164,12 @@ function AppContent() {
         <Route 
           path="/admin/student/:studentId" 
           element={isAdminOrSuperAdmin ? <StudentProfile /> : <Navigate to="/" replace />} 
+        />
+
+        {/* ✅ Teacher Profile Page - MOVED INSIDE <Routes> */}
+        <Route 
+          path="/admin/teachers/:teacherId" 
+          element={isAdminOrSuperAdmin ? <TeacherProfile /> : <Navigate to="/" replace />} 
         />
         
         {/* ============================================ */}

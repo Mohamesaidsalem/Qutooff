@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  User, Mail, Phone, Globe, MapPin, Calendar,
+  User, Mail, Phone, Globe, Calendar,
   Edit, ArrowLeft, GraduationCap, BookOpen,
   Clock, TrendingUp, AlertCircle, CheckCircle,
   XCircle, Coffee, Award, BarChart, FileText,
@@ -17,18 +17,18 @@ import ManageStudentStatusModal from '../Students/ManageStudentStatusModal';
 interface Student {
   id: string;
   name: string;
-  age: number;
+  age: number | string;
   email: string;
   phone?: string;
-  level: string;
-  progress: number;
-  teacherId: string;
-  teacherName: string;
+  level?: string;
+  progress?: number;
+  teacherId?: string;
+  teacherName?: string;
   courseId?: string;
   courseName?: string;
-  status: 'active' | 'suspended' | 'leave' | 'break';
-  timezone: string;
-  parentId: string;
+  status: 'active' | 'suspended' | 'leave' | 'break' | 'on-hold' | 'inactive';
+  timezone?: string;
+  parentId?: string;
   parentName?: string;
   parentEmail?: string;
   nextClass?: string;
@@ -37,6 +37,18 @@ interface Student {
   attendanceRate?: number;
   createdAt: string;
   studentImage?: string;
+
+  // الحقول المطلوبة في EditStudentDetailsModal
+  skypeId?: string;
+  gender?: string;
+  language?: string;
+  data?: string;
+  numberOfDays?: string;
+  regularCourse?: string;
+  teacher?: string;
+  additionalCourse?: string;
+  remarksForParent?: string;
+  remarksForTeacher?: string;
 }
 
 interface Class {
@@ -65,13 +77,13 @@ interface Report {
 export default function StudentProfile() {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
-  
+
   const [student, setStudent] = useState<Student | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'reports'>('overview');
-  
+
   const [showEditModal, setShowEditModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
 
@@ -82,9 +94,42 @@ export default function StudentProfile() {
     const studentRef = ref(database, `children/${studentId}`);
     const unsubscribe = onValue(studentRef, (snapshot) => {
       if (snapshot.exists()) {
+        const data = snapshot.val();
         setStudent({
           id: studentId,
-          ...snapshot.val()
+          name: data.name || '',
+          age: data.age || 0,
+          email: data.email || '',
+          phone: data.phone,
+          level: data.level,
+          progress: data.progress,
+          teacherId: data.teacherId,
+          teacherName: data.teacherName,
+          courseId: data.courseId,
+          courseName: data.courseName,
+          status: data.status || 'active',
+          timezone: data.timezone,
+          parentId: data.parentId,
+          parentName: data.parentName,
+          parentEmail: data.parentEmail,
+          nextClass: data.nextClass,
+          totalClasses: data.totalClasses,
+          completedClasses: data.completedClasses,
+          attendanceRate: data.attendanceRate,
+          createdAt: data.createdAt || new Date().toISOString(),
+          studentImage: data.studentImage,
+
+          // الحقول المطلوبة في المودال
+          skypeId: data.skypeId || '',
+          gender: data.gender || 'Male',
+          language: data.language || 'English',
+          data: data.data || (data.createdAt ? data.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+          numberOfDays: data.numberOfDays || '2',
+          regularCourse: data.regularCourse || data.courseName || '',
+          teacher: data.teacher || data.teacherName || '',
+          additionalCourse: data.additionalCourse || '',
+          remarksForParent: data.remarksForParent || '',
+          remarksForTeacher: data.remarksForTeacher || '',
         });
       }
       setLoading(false);
@@ -103,9 +148,9 @@ export default function StudentProfile() {
         const data = snapshot.val();
         const allClasses = Object.keys(data)
           .map(key => ({ id: key, ...data[key] }))
-          .filter(cls => cls.studentId === studentId)
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
+          .filter((cls: any) => cls.studentId === studentId)
+          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
         setClasses(allClasses);
       }
     });
@@ -123,9 +168,9 @@ export default function StudentProfile() {
         const data = snapshot.val();
         const allReports = Object.keys(data)
           .map(key => ({ id: key, ...data[key] }))
-          .filter(report => report.studentId === studentId)
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
+          .filter((report: any) => report.studentId === studentId)
+          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
         setReports(allReports);
       }
     });
@@ -133,7 +178,7 @@ export default function StudentProfile() {
     return () => off(reportsRef, 'value', unsubscribe);
   }, [studentId]);
 
-  const handleStatusChange = async (newStatus: 'active' | 'suspended' | 'leave' | 'break') => {
+  const handleStatusChange = async (newStatus: Student['status']) => {
     if (!studentId) return;
 
     try {
@@ -142,7 +187,8 @@ export default function StudentProfile() {
         status: newStatus,
         updatedAt: new Date().toISOString()
       });
-      
+
+      setStudent(prev => prev ? { ...prev, status: newStatus } : null);
       alert(`✅ Status changed to ${newStatus}!`);
     } catch (error) {
       console.error('Error updating status:', error);
@@ -156,6 +202,8 @@ export default function StudentProfile() {
       case 'suspended': return 'bg-red-500';
       case 'leave': return 'bg-blue-500';
       case 'break': return 'bg-yellow-500';
+      case 'on-hold': return 'bg-purple-500';
+      case 'inactive': return 'bg-gray-500';
       default: return 'bg-gray-500';
     }
   };
@@ -195,8 +243,8 @@ export default function StudentProfile() {
   }
 
   const completedClasses = classes.filter(c => c.status === 'completed').length;
-  const attendanceRate = classes.length > 0 
-    ? Math.round((completedClasses / classes.length) * 100) 
+  const attendanceRate = classes.length > 0
+    ? Math.round((completedClasses / classes.length) * 100)
     : 0;
 
   return (
@@ -219,7 +267,7 @@ export default function StudentProfile() {
               alt={student.name}
               className="h-32 w-32 rounded-lg object-cover border-4 border-blue-200"
             />
-            
+
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>
@@ -227,7 +275,7 @@ export default function StudentProfile() {
                   ID: {student.id.slice(-6)}
                 </span>
               </div>
-              
+
               <p className="text-gray-600 mb-3">
                 Parent: <span className="font-semibold text-gray-900">{student.parentName || 'N/A'}</span>
               </p>
@@ -236,9 +284,9 @@ export default function StudentProfile() {
               <div className="flex items-center gap-2">
                 <span className={`px-4 py-2 rounded-lg text-white font-semibold text-sm flex items-center gap-2 ${getStatusColor(student.status)}`}>
                   {getStatusIcon(student.status)}
-                  {student.status.toUpperCase()}
+                  {student.status?.toUpperCase() || 'UNKNOWN'}
                 </span>
-                
+
                 <button
                   onClick={() => setShowStatusModal(true)}
                   className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm font-semibold"
@@ -265,7 +313,7 @@ export default function StudentProfile() {
               <GraduationCap className="h-8 w-8 text-blue-600" />
               <div>
                 <p className="text-sm text-gray-600">Current Level</p>
-                <p className="text-lg font-bold text-gray-900">{student.level}</p>
+                <p className="text-lg font-bold text-gray-900">{student.level || 'N/A'}</p>
               </div>
             </div>
           </div>
@@ -275,7 +323,7 @@ export default function StudentProfile() {
               <TrendingUp className="h-8 w-8 text-green-600" />
               <div>
                 <p className="text-sm text-gray-600">Progress</p>
-                <p className="text-lg font-bold text-gray-900">{student.progress}%</p>
+                <p className="text-lg font-bold text-gray-900">{student.progress || 0}%</p>
               </div>
             </div>
           </div>
@@ -312,7 +360,7 @@ export default function StudentProfile() {
                 <p className="font-semibold text-gray-900">{student.age} years</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <Mail className="h-5 w-5 text-gray-500" />
               <div>
@@ -320,7 +368,7 @@ export default function StudentProfile() {
                 <p className="font-semibold text-gray-900">{student.email}</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <Phone className="h-5 w-5 text-gray-500" />
               <div>
@@ -349,7 +397,7 @@ export default function StudentProfile() {
               <Globe className="h-5 w-5 text-gray-500" />
               <div>
                 <p className="text-xs text-gray-500">Timezone</p>
-                <p className="font-semibold text-gray-900">{student.timezone}</p>
+                <p className="font-semibold text-gray-900">{student.timezone || 'N/A'}</p>
               </div>
             </div>
 
@@ -366,7 +414,7 @@ export default function StudentProfile() {
               <div>
                 <p className="text-xs text-gray-500">Joined</p>
                 <p className="font-semibold text-gray-900">
-                  {new Date(student.createdAt).toLocaleDateString()}
+                  {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : 'N/A'}
                 </p>
               </div>
             </div>
@@ -380,33 +428,30 @@ export default function StudentProfile() {
           <nav className="flex">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-6 py-4 text-sm font-semibold border-b-2 ${
-                activeTab === 'overview'
+              className={`px-6 py-4 text-sm font-semibold border-b-2 ${activeTab === 'overview'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600'
-              }`}
+                }`}
             >
               📊 Overview
             </button>
-            
+
             <button
               onClick={() => setActiveTab('history')}
-              className={`px-6 py-4 text-sm font-semibold border-b-2 ${
-                activeTab === 'history'
+              className={`px-6 py-4 text-sm font-semibold border-b-2 ${activeTab === 'history'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600'
-              }`}
+                }`}
             >
               📅 Class History ({classes.length})
             </button>
-            
+
             <button
               onClick={() => setActiveTab('reports')}
-              className={`px-6 py-4 text-sm font-semibold border-b-2 ${
-                activeTab === 'reports'
+              className={`px-6 py-4 text-sm font-semibold border-b-2 ${activeTab === 'reports'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600'
-              }`}
+                }`}
             >
               📈 Reports ({reports.length})
             </button>
@@ -433,13 +478,13 @@ export default function StudentProfile() {
                       </div>
                       <div className="text-right">
                         <span className="text-xs font-semibold inline-block text-blue-600">
-                          {student.progress}%
+                          {student.progress || 0}%
                         </span>
                       </div>
                     </div>
                     <div className="overflow-hidden h-4 mb-4 text-xs flex rounded-full bg-blue-200">
                       <div
-                        style={{ width: `${student.progress}%` }}
+                        style={{ width: `${student.progress || 0}%` }}
                         className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-500"
                       ></div>
                     </div>
@@ -489,12 +534,11 @@ export default function StudentProfile() {
                             <p className="text-sm text-gray-600">{cls.time} - {cls.duration} min</p>
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          cls.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          cls.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                          cls.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${cls.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            cls.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                              cls.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                          }`}>
                           {cls.status}
                         </span>
                       </div>
@@ -535,12 +579,11 @@ export default function StudentProfile() {
                           <td className="px-4 py-3 text-gray-700">{cls.time}</td>
                           <td className="px-4 py-3 text-gray-700">{cls.duration} min</td>
                           <td className="px-4 py-3">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              cls.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              cls.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                              cls.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800'
-                            }`}>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${cls.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                cls.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                                  cls.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                              }`}>
                               {cls.status}
                             </span>
                           </td>
@@ -578,7 +621,7 @@ export default function StudentProfile() {
                         </div>
                         <Award className="h-8 w-8 text-yellow-500" />
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
                           <h5 className="font-semibold text-green-700 mb-2">✅ Strengths:</h5>
@@ -588,7 +631,7 @@ export default function StudentProfile() {
                             ))}
                           </ul>
                         </div>
-                        
+
                         <div>
                           <h5 className="font-semibold text-orange-700 mb-2">📈 Areas to Improve:</h5>
                           <ul className="list-disc list-inside text-sm text-gray-700">
@@ -597,7 +640,7 @@ export default function StudentProfile() {
                             ))}
                           </ul>
                         </div>
-                        
+
                         <div>
                           <h5 className="font-semibold text-blue-700 mb-2">🎯 Next Goals:</h5>
                           <ul className="list-disc list-inside text-sm text-gray-700">
@@ -607,7 +650,7 @@ export default function StudentProfile() {
                           </ul>
                         </div>
                       </div>
-                      
+
                       <div className="bg-white p-4 rounded border">
                         <h5 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                           <MessageSquare className="h-4 w-4" />
@@ -627,8 +670,12 @@ export default function StudentProfile() {
       {/* Modals */}
       {showEditModal && student && (
         <EditStudentDetailsModal
-          student={student}
+          studentData={student}
           onClose={() => setShowEditModal(false)}
+          onUpdate={async (id, updatedData) => {
+            setStudent(prev => prev ? { ...prev, ...updatedData } : null);
+            setShowEditModal(false);
+          }}
         />
       )}
 

@@ -117,6 +117,7 @@ export interface Family {
 
 // 🔥 Course Interface
 export interface Course {
+  title: string;
   id: string;
   name: string;
   description?: string;

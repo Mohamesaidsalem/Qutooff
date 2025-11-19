@@ -283,34 +283,28 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
   return (
     <>
       <header className="bg-emerald-900 shadow-sm sticky top-0 z-40 border-b border-emerald-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-6">
           <div className="flex justify-between items-center h-16">
             <div 
-  className="flex-shrink-0 cursor-pointer"
-  onClick={() => navigate('/')}
->
-  <img 
-    src={logo} 
-    alt="Quraan Academy Logo" 
-    className="h-20 w-auto object-contain"
-  />
-</div>
-
-            {!user && (
-              <div className="hidden md:flex items-center space-x-6">
-                <div className="font-medium transition-colors cursor-pointer hover:bg-emerald-800 px-3 py-1 rounded-md" style={{ color: "#FFD700" }}>
-                  Courses
-                </div>
-                <div className="font-medium transition-colors cursor-pointer hover:bg-emerald-800 px-3 py-1 rounded-md" style={{ color: "#FFD700" }}>
-                  Why Us
-                </div>
-                <div className="font-medium transition-colors cursor-pointer hover:bg-emerald-800 px-3 py-1 rounded-md" style={{ color: "#FFD700" }}>
-                  Reviews
-                </div>
-              </div>
-            )}
+              className="flex-shrink-0 cursor-pointer transition-transform hover:scale-105"
+              onClick={() => {
+                if (user) {
+                  // لو في يوزر، يروح للداشبورد
+                  navigate('/dashboard');
+                } else {
+                  // لو مفيش يوزر، يروح للصفحة الرئيسية
+                  navigate('/');
+                }
+              }}
+            >
+              <img 
+                src={logo} 
+                alt="Quraan Academy Logo" 
+                className="h-20 w-auto object-contain"
+              />
+            </div>
             
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-4 ml-auto">
               {user && (
                 <div className="flex items-center space-x-3">
                   {(user.role === 'parent' || user.role === 'student' || user.role === 'teacher') && (
@@ -539,29 +533,29 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
                     </div>
                   )}
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 mr-2">
                     <div className="text-right">
-                      <span className={`text-sm font-bold px-2 py-1 rounded-full ${getUserRoleColor(user.role)}`}>
+                      <span className={`text-sm font-bold px-3 py-1.5 rounded-full ${getUserRoleColor(user.role)}`}>
                         {(user.role as string) === 'super_admin' && <Shield className="h-3 w-3 inline mr-1" />}
                         {getUserRoleText(user.role)}
                       </span>
-                      <div className="text-xs text-gray-500 mt-1">{user.name}</div>
+                      <div className="text-xs mt-1" style={{ color: "#FFD700" }}>{user.name}</div>
                     </div>
                   </div>
                   
-                  <button onClick={handleSignOut} className="px-4 py-2 rounded-full font-semibold text-sm flex items-center transition-colors shadow-md hover:opacity-90" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
-                    <LogOut className="h-4 w-4 mr-1" /> Sign Out
+                  <button onClick={handleSignOut} className="px-5 py-2 rounded-full font-semibold text-sm flex items-center transition-all shadow-md hover:shadow-lg hover:scale-105" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
+                    <LogOut className="h-4 w-4 mr-2" /> Sign Out
                   </button>
                 </div>
               )}
               
               {!user && (
-                <div className="flex items-center space-x-4">
-                  <button className="px-4 py-2 rounded-full font-semibold text-sm transition-colors shadow-md hover:opacity-90" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
+                <div className="flex items-center space-x-3">
+                  <button className="px-5 py-2 rounded-full font-semibold text-sm transition-all shadow-md hover:shadow-lg hover:scale-105" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
                     Get Free Trial
                   </button>
-                  <button onClick={onShowLogin} className="px-4 py-2 rounded-full font-semibold text-sm flex items-center transition-colors shadow-md hover:opacity-90" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
-                    <LogIn className="h-4 w-4 mr-1" /> Sign In
+                  <button onClick={onShowLogin} className="px-5 py-2 rounded-full font-semibold text-sm flex items-center transition-all shadow-md hover:shadow-lg hover:scale-105" style={{ backgroundColor: "#FFD700", color: "#064E3B" }}>
+                    <LogIn className="h-4 w-4 mr-2" /> Sign In
                   </button>
                 </div>
               )}
@@ -579,20 +573,6 @@ const Header: React.FC<HeaderProps> = ({ onShowLogin }) => {
         {/* Mobile Menu */}
         {showMobileMenu && (
           <div className="md:hidden bg-emerald-900 border-t border-emerald-800 px-4 py-4 space-y-4">
-            {!user && (
-              <>
-                <div className="font-medium cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
-                  Courses
-                </div>
-                <div className="font-medium cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
-                  Why Us
-                </div>
-                <div className="font-medium cursor-pointer" style={{ color: "#FFD700" }} onClick={() => setShowMobileMenu(false)}>
-                  Reviews
-                </div>
-              </>
-            )}
-
             {user && (
               <>
                 {(user.role === 'parent' || user.role === 'student' || user.role === 'teacher') && (
